@@ -11,6 +11,8 @@ import {
 } from './server'
 
 const TOKEN_KEY = 'logixAssistant.pairingToken'
+/** Local dev servers on any port (Vite moves to 5174, 5175... when 5173 is busy). */
+const LOOPBACK_ORIGINS = ['http://localhost:*', 'http://127.0.0.1:*']
 const SYSTEM_PROMPT =
   'You are Logix Assistant, a helpful assistant for Rockwell Automation / Studio 5000 Logix programming, created by Charles R. Freeman.'
 
@@ -146,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const next = createBridge({
       port,
       getToken: () => token,
-      getAllowedOrigins: () => config().get<string[]>('allowedOrigins', []),
+      getAllowedOrigins: () => [...LOOPBACK_ORIGINS, ...config().get<string[]>('allowedOrigins', [])],
       provider: new CopilotProvider(),
     })
     await new Promise<void>((resolve) => {

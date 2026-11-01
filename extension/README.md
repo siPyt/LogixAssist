@@ -32,7 +32,9 @@ below). The first chat message makes VS Code ask whether the extension may use y
   then any available model. The app shows which model answered.
 - `logixAssistant.port` — default `47821`.
 - `logixAssistant.appUrl` — URL opened by auto-pair (set to your Vercel URL for the deployed app).
-- `logixAssistant.allowedOrigins` — web origins allowed to call the bridge. Add your Vercel URL here.
+- `logixAssistant.allowedOrigins` — extra web origins allowed to call the bridge (e.g. your Vercel URL). Local
+  addresses (`localhost` / `127.0.0.1` on **any** port) are always allowed, so it doesn't matter if the dev server
+  moves to 5174.
 
 ## Security
 

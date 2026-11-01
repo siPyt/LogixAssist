@@ -69,6 +69,10 @@ async function main() {
     assert.equal(originMatches('https://logix.vercel.app', 'https://*.vercel.app'), true)
     assert.equal(originMatches('https://evil.com', 'https://*.vercel.app'), false)
     assert.equal(originMatches('https://vercel.app.evil.com', 'https://*.vercel.app'), false)
+    assert.equal(originMatches('http://localhost:5174', 'http://localhost:*'), true)
+    assert.equal(originMatches('http://127.0.0.1:4173', 'http://127.0.0.1:*'), true)
+    assert.equal(originMatches('http://localhost.evil.com', 'http://localhost:*'), false)
+    assert.equal(originMatches('https://evil.com', 'http://localhost:*'), false)
 
     // health is open to allowed origins, with CORS + private network headers
     let r = await request('/health', { headers: { origin: ORIGIN } })
