@@ -41,6 +41,7 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [pairing, setPairing] = useState(false)
+  const [pairError, setPairError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [backend, setBackend] = useState(getAiBackend())
   const [bridge, setBridge] = useState<BridgeState>({ kind: 'checking' })
@@ -50,14 +51,30 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
 
   useEffect(() => {
     let cancelled = false
+    let running = false
     async function check() {
       const next = getAiBackend()
       setBackend(next)
-      if (next !== 'vscode') return
-      const state = await probeBridge(getBridgeUrl(), getBridgeToken())
-      if (cancelled) return
-      setBridge(state)
-      if (state.kind === 'ready') setActiveModel(state.model)
+      if (next !== 'vscode' || running) return
+      running = true
+      try {
+        let state = await probeBridge(getBridgeUrl(), getBridgeToken())
+        // Pair automatically: the bridge hands its token to allowed origins only.
+        if (state.kind === 'needs-token' || state.kind === 'bad-token') {
+          try {
+            setBridgeToken(await pairWithBridge(getBridgeUrl()))
+            setPairError(null)
+            state = await probeBridge(getBridgeUrl(), getBridgeToken())
+          } catch (err) {
+            setPairError(err instanceof Error ? err.message : 'Pairing failed.')
+          }
+        }
+        if (cancelled) return
+        setBridge(state)
+        if (state.kind === 'ready') setActiveModel(state.model)
+      } finally {
+        running = false
+      }
     }
     void check()
     const timer = window.setInterval(() => {
@@ -189,16 +206,8 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
               subscription — no API key needed.
             </p>
           )}
-          {bridge.kind === 'needs-token' && (
-            <p>
-              The bridge is running. Click <strong>Pair with VS Code</strong> to connect this app.
-            </p>
-          )}
-          {bridge.kind === 'bad-token' && (
-            <p>
-              The saved pairing token no longer matches. Click <strong>Pair with VS Code</strong>{' '}
-              to connect again.
-            </p>
+          {(bridge.kind === 'needs-token' || bridge.kind === 'bad-token') && (
+            <p>{pairError ?? 'Connecting to VS Code…'}</p>
           )}
           <div className="assistant-help-actions">
             <button

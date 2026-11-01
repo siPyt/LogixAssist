@@ -12,9 +12,10 @@ npm run package
 code --install-extension logix-assistant-bridge-0.1.0.vsix
 ```
 
-Easiest: in the app's AI panel click **Pair with VS Code** (VS Code may ask to allow the link). You can also run
-**Logix Assistant: Open App (auto-pair)** from the Command Palette. The first chat message makes VS Code ask
-whether the extension may use your Copilot models — choose **Allow**. Pairing is remembered in the browser.
+The app pairs itself automatically when it finds the bridge (the bridge only hands its token to the allowed origins
+below). The first chat message makes VS Code ask whether the extension may use your Copilot models — choose
+**Allow**. Pairing is remembered in the browser. If you ever need it manually, run **Logix Assistant: Open App
+(auto-pair)** from the Command Palette.
 
 ## Commands
 
@@ -36,8 +37,8 @@ whether the extension may use your Copilot models — choose **Allow**. Pairing 
 ## Security
 
 - Listens on `127.0.0.1` only, and rejects requests whose `Host` isn't loopback (DNS-rebinding protection).
-- Browsers must come from an allowed origin, and every chat/model request needs the secret pairing token
-  (stored in VS Code's SecretStorage, compared in constant time).
+- Browsers must come from an allowed origin to receive the pairing token or call the bridge, and every chat/model
+  request needs that secret token (stored in VS Code's SecretStorage, compared in constant time).
 - The auto-pair token travels in the URL fragment, which browsers never send to servers.
 
 ## Develop
