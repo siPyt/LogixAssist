@@ -1,0 +1,104 @@
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type BridgeState =
+  | { kind: 'checking' }
+  | { kind: 'offline' }
+  | { kind: 'needs-token' }
+  | { kind: 'bad-token' }
+  | { kind: 'ready'; model: string | null }
+
+const BRIDGE_NAME = 'logix-assistant-bridge'
+
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
+/** Checks whether the VS Code bridge is running and whether our token is accepted. */
+export async function probeBridge(baseUrl: string, token: string): Promise<BridgeState> {
+  try {
+    const health = await fetchWithTimeout(`${baseUrl}/health`, {}, 2500)
+    const info = health.ok ? ((await health.json()) as { name?: string }) : null
+    if (info?.name !== BRIDGE_NAME) return { kind: 'offline' }
+    if (!token) return { kind: 'needs-token' }
+
+    const models = await fetchWithTimeout(
+      `${baseUrl}/models`,
+      { headers: { authorization: `Bearer ${token}` } },
+      5000,
+    )
+    if (models.status === 401) return { kind: 'bad-token' }
+    if (!models.ok) return { kind: 'offline' }
+    const data = (await models.json()) as { selected?: { name?: string } | null }
+    return { kind: 'ready', model: data.selected?.name ?? null }
+  } catch {
+    return { kind: 'offline' }
+  }
+}
+
+export const OFFLINE_HELP =
+  "Can't reach the VS Code bridge. Open VS Code with the Logix Assistant Bridge extension installed, then try again."
+
+/** Streams a reply from the VS Code bridge, calling onDelta for each chunk of text. */
+export async function streamChat(
+  baseUrl: string,
+  token: string,
+  messages: ChatMessage[],
+  onDelta: (text: string) => void,
+  signal: AbortSignal,
+): Promise<{ model?: string }> {
+  let res: Response
+  try {
+    res = await fetch(`${baseUrl}/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages }),
+      signal,
+    })
+  } catch (err) {
+    if (signal.aborted) throw err
+    throw new Error(OFFLINE_HELP)
+  }
+
+  if (res.status === 401) {
+    throw new Error('The pairing token was rejected. Pair again from VS Code: "Logix Assistant: Open App (auto-pair)".')
+  }
+  if (!res.ok || !res.body) {
+    const detail = await res.json().then((d: { error?: string }) => d.error).catch(() => undefined)
+    throw new Error(detail ?? `Bridge request failed (${res.status})`)
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let model: string | undefined
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let end: number
+    while ((end = buffer.indexOf('\n\n')) >= 0) {
+      const line = buffer.slice(0, end).trim()
+      buffer = buffer.slice(end + 2)
+      if (!line.startsWith('data:')) continue
+      const event = JSON.parse(line.slice(5)) as {
+        delta?: string
+        error?: string
+        done?: boolean
+        model?: string
+      }
+      if (event.error) throw new Error(event.error)
+      if (event.delta) onDelta(event.delta)
+      if (event.done) model = event.model
+    }
+  }
+  return { model }
+}

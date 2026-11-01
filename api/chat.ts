@@ -25,6 +25,27 @@ function text(body: string, status: number): Response {
   return new Response(body, { status })
 }
 
+/** Turns an Anthropic error response into a short, actionable message. */
+async function describeUpstreamError(res: Response, model: string): Promise<string> {
+  let detail = ''
+  try {
+    const data = (await res.json()) as { error?: { message?: string } }
+    detail = data.error?.message ?? ''
+  } catch {
+    // body was not JSON
+  }
+  if (res.status === 401) {
+    return 'Anthropic rejected the API key. Check ANTHROPIC_API_KEY in your .env file (or Vercel environment variables).'
+  }
+  if (res.status === 404 || /model/i.test(detail)) {
+    return `Anthropic does not recognise the model "${model}". Set ANTHROPIC_MODEL to a model id available to your account.`
+  }
+  if (res.status === 429) {
+    return 'Anthropic rate limit reached. Wait a moment and try again.'
+  }
+  return `Assistant error (${res.status})${detail ? `: ${detail}` : ''}`
+}
+
 function isMessage(value: unknown): value is ChatMessage {
   if (typeof value !== 'object' || value === null) return false
   const m = value as Record<string, unknown>
@@ -40,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return text(
-      'AI assistant is not configured. Set ANTHROPIC_API_KEY (Vercel env vars, or a local .env file) to enable it.',
+      'AI assistant is not configured yet. Add your Anthropic API key as ANTHROPIC_API_KEY in the .env file in the project folder (or in your Vercel project environment variables), save, and send again.',
       503,
     )
   }
@@ -85,8 +106,7 @@ export async function POST(request: Request): Promise<Response> {
     })
 
     if (!res.ok) {
-      const detail = await res.text()
-      return text(`Assistant error (${res.status}): ${detail}`, 502)
+      return text(await describeUpstreamError(res, model), 502)
     }
 
     const data = (await res.json()) as {

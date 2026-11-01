@@ -7,7 +7,8 @@ A FactoryTalk View–styled "HMI" shell with three panels:
 - **Library (left)** — a file explorer for your Rockwell official PDFs and program-file PDFs.
   Create folders, add files (button or drag-and-drop), delete, and click a PDF to read it in the center panel.
 - **Center** — marketing screen (_Logix Assistant, developed by Charles R. Freeman, Software Engineer_) or the file viewer.
-- **AI Assistant (right)** — defaults to the **Claude Sonnet 5.5** agent.
+- **AI Assistant (right)** — uses the **Claude Sonnet** model from your VS Code (GitHub Copilot) subscription via the
+  bundled bridge extension, with live streaming replies.
 
 The **LA** badge (Rockwell brand red `#CD163F` / orange `#F58025`):
 
@@ -32,8 +33,21 @@ Other scripts: `npm run build` (production build to `dist/`), `npm run preview`.
    (e.g. `resources/` in this project). Use **Chrome or Edge**. The app remembers the folder; after a browser restart
    click **Reconnect folder** once to re-grant access. Other browsers can use **Use browser storage instead**.
 2. **VS Code path** — open **Settings** and set the absolute path of that same folder so the LA badge opens it in VS Code.
-3. **AI assistant** — copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`. Restart `npm run dev`.
-   The model defaults to `claude-sonnet-5.5`; override with `ANTHROPIC_MODEL` if your API account uses a different id.
+3. **AI assistant (uses your VS Code Claude Sonnet — no API key)** — install the bridge extension once:
+
+   ```bash
+   cd extension
+   npm install
+   npm run package
+   code --install-extension logix-assistant-bridge-0.1.0.vsix
+   ```
+
+   Then in VS Code run **Logix Assistant: Open App (auto-pair)** from the Command Palette. It opens the app and
+   pairs it. The first message triggers a VS Code prompt asking to allow the extension to use your Copilot
+   models — choose **Allow**. See [extension/README.md](./extension/README.md).
+
+   The Anthropic API (`ANTHROPIC_API_KEY`, see `.env.example`) is only an optional fallback, for phones or
+   machines without VS Code. Choose it in **Settings → Connect through**.
 
 ## Install it as an app (desktop, mobile, or web)
 
@@ -54,8 +68,11 @@ files on iPhone may not work.
 ## Deploy (Vercel)
 
 1. Import the GitHub repo into Vercel (framework preset: **Vite**).
-2. Add `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`) under Settings → Environment Variables.
-3. Deploy. The `api/chat.ts` function keeps the key server-side.
+2. Deploy. To use your VS Code model from the deployed site, add the Vercel URL to the VS Code setting
+   **Logix Assistant: Allowed Origins** (and **App Url** to auto-pair it). The browser talks to the bridge on your own
+   machine, so VS Code must be open on the computer you're using.
+3. Optional fallback for devices without VS Code: add `ANTHROPIC_API_KEY` under Settings → Environment Variables.
+   The `api/chat.ts` function keeps the key server-side.
 
 On Vercel the Library panel still works (it uses your browser's folder access), but the LA badge's
 `vscode://` link only works on a machine that has VS Code installed.

@@ -6,11 +6,54 @@ export const AUTHOR = 'Charles R. Freeman'
 export const AUTHOR_TITLE = 'Software Engineer'
 export const APP_NAME = 'Logix Assistant'
 
-/** Default AI agent for the assistant panel. */
-export const DEFAULT_AI_MODEL = 'claude-sonnet-5.5'
-
-/** Friendly label for the default agent. */
+/** Friendly label for the default agent (the model actually used is reported by the bridge). */
 export const DEFAULT_AI_MODEL_LABEL = 'Claude Sonnet 5.5'
+
+export type AiBackend = 'vscode' | 'cloud'
+
+/** Where the local VS Code bridge extension listens. */
+export const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:47821'
+
+const BACKEND_KEY = 'logix.aiBackend'
+const BRIDGE_URL_KEY = 'logix.bridgeUrl'
+const BRIDGE_TOKEN_KEY = 'logix.bridgeToken'
+
+/** Fired whenever AI settings change so open panels can re-check the connection. */
+export const AI_SETTINGS_EVENT = 'logix-ai-settings'
+
+function readSetting(key: string): string | null {
+  return typeof localStorage === 'undefined' ? null : localStorage.getItem(key)
+}
+
+function writeSetting(key: string, value: string): void {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(key, value)
+  window.dispatchEvent(new Event(AI_SETTINGS_EVENT))
+}
+
+export function getAiBackend(): AiBackend {
+  return readSetting(BACKEND_KEY) === 'cloud' ? 'cloud' : 'vscode'
+}
+
+export function setAiBackend(value: AiBackend): void {
+  writeSetting(BACKEND_KEY, value)
+}
+
+export function getBridgeUrl(): string {
+  return (readSetting(BRIDGE_URL_KEY) || DEFAULT_BRIDGE_URL).replace(/\/+$/, '')
+}
+
+export function setBridgeUrl(value: string): void {
+  writeSetting(BRIDGE_URL_KEY, value.trim())
+}
+
+export function getBridgeToken(): string {
+  return readSetting(BRIDGE_TOKEN_KEY) ?? ''
+}
+
+export function setBridgeToken(value: string): void {
+  writeSetting(BRIDGE_TOKEN_KEY, value.trim())
+}
 
 /**
  * Default local folder (absolute path) that holds the Rockwell official PDFs

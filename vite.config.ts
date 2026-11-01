@@ -5,17 +5,21 @@ import react from '@vitejs/plugin-react'
  * Serves api/chat.ts at /api/chat during `npm run dev`, mirroring the Vercel
  * serverless function. Env vars (e.g. ANTHROPIC_API_KEY) come from .env.
  */
-function apiDevPlugin(env: Record<string, string>): Plugin {
+function apiDevPlugin(mode: string): Plugin {
   return {
     name: 'logix-api-dev',
     configureServer(server) {
-      Object.assign(process.env, env)
       server.middlewares.use('/api/chat', async (req, res) => {
         try {
           if (req.method !== 'POST') {
             res.statusCode = 405
             res.end('Method Not Allowed')
             return
+          }
+          // Re-read .env on every request so a newly pasted key works without restarting.
+          for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), ''))) {
+            if (value) process.env[key] = value
+            else delete process.env[key]
           }
           const chunks: Buffer[] = []
           for await (const chunk of req) chunks.push(chunk as Buffer)
@@ -41,9 +45,8 @@ function apiDevPlugin(env: Record<string, string>): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react(), apiDevPlugin(env)],
+    plugins: [react(), apiDevPlugin(mode)],
     server: {
       port: 5173,
       open: true,

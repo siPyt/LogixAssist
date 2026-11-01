@@ -256,6 +256,54 @@ body {
   background: var(--green);
   box-shadow: 0 0 8px var(--green);
 }
+.assistant-dot.is-warn {
+  background: var(--brand-orange);
+  box-shadow: 0 0 8px var(--brand-orange);
+}
+.assistant-dot.is-checking {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+.assistant-status {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+.assistant-status.is-ready {
+  color: var(--green);
+}
+.assistant-status.is-warn {
+  color: var(--brand-orange);
+}
+
+.assistant-help {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: rgba(245, 128, 37, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+.assistant-help p {
+  margin: 0 0 8px;
+}
+.assistant-help strong {
+  color: var(--text);
+}
+.assistant-help button {
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assistant-help button:hover {
+  border-color: var(--brand-orange);
+}
 .assistant-title {
   font-weight: 700;
   font-size: 14px;
@@ -389,6 +437,40 @@ body {
   border-color: var(--brand-orange);
 }
 .settings-field input[readonly] {
+  color: var(--text-2);
+}
+.settings-field select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.settings-field select:focus {
+  outline: none;
+  border-color: var(--brand-orange);
+}
+.settings-subtitle {
+  margin: 22px 0 12px;
+  font-size: 15px;
+  color: var(--text-2);
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.settings-actions button.settings-secondary {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.settings-actions button.settings-secondary:hover {
+  color: var(--text);
+  border-color: var(--brand-orange);
+}
+.settings-result {
+  margin: 12px 0 0;
+  font-size: 13px;
   color: var(--text-2);
 }
 .settings-actions {

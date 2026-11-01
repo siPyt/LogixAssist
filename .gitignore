@@ -34,6 +34,10 @@ dist-ssr/
 *.local
 .vercel/
 
+# Bridge extension build output
+extension/out/
+*.vsix
+
 # Environment / secrets
 .env
 .env.*

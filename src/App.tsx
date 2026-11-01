@@ -72,7 +72,7 @@ export default function App() {
         <div className={'app-center' + (openFile && !showSettings ? ' app-center-viewer' : '')}>
           {center}
         </div>
-        <AssistantPanel />
+        <AssistantPanel onOpenSettings={() => setShowSettings(true)} />
       </main>
 
       <footer className="app-footer">© {new Date().getFullYear()} {AUTHOR}</footer>
