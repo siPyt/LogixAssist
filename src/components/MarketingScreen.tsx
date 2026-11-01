@@ -13,8 +13,9 @@ export function MarketingScreen() {
         developed by <strong>{AUTHOR}</strong>, {AUTHOR_TITLE}
       </p>
       <p className="marketing-hint">
-        Click the <strong>LA</strong> badge to open your Rockwell &amp; program-file
-        library in VS Code.
+        Select a PDF or program file in the Explorer to preview it here, or use
+        the <strong>LA</strong> badge in the top bar to open your Rockwell &amp;
+        program-file library in VS Code.
       </p>
     </section>
   )

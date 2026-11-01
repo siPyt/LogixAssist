@@ -5,13 +5,16 @@ import {
   canPickFolder,
   canUsePrivateStorage,
   clearStoredRoot,
+  createFile,
   createFolder,
   getPrivateRoot,
   hasPermission,
   loadStoredRoot,
+  moveEntry,
   pickFolder,
   readTree,
   removeEntry,
+  renameEntry,
   saveStoredRoot,
   type DirHandle,
   type LibraryMode,
@@ -152,6 +155,33 @@ export function useLibrary() {
     [guard],
   )
 
+  const makeFile = useCallback(
+    (parentPath: string, name: string) =>
+      guard(async () => {
+        if (!rootRef.current) return
+        await createFile(rootRef.current, parentPath, name)
+      }),
+    [guard],
+  )
+
+  const rename = useCallback(
+    (path: string, name: string) =>
+      guard(async () => {
+        if (!rootRef.current) return
+        await renameEntry(rootRef.current, path, name)
+      }),
+    [guard],
+  )
+
+  const move = useCallback(
+    (path: string, destDirPath: string) =>
+      guard(async () => {
+        if (!rootRef.current) return
+        await moveEntry(rootRef.current, path, destDirPath)
+      }),
+    [guard],
+  )
+
   const uploadFiles = useCallback(
     (parentPath: string, files: File[]) =>
       guard(async () => {
@@ -196,6 +226,9 @@ export function useLibrary() {
     disconnect,
     refresh: () => guard(async () => undefined),
     makeFolder,
+    makeFile,
+    rename,
+    move,
     uploadFiles,
     dropItems,
     remove,

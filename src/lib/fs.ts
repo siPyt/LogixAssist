@@ -300,3 +300,109 @@ export async function removeEntry(root: DirHandle, path: string): Promise<void> 
   const parent = await resolveDir(root, segments.join('/'))
   await parent.removeEntry(name, { recursive: true })
 }
+
+export function parentOf(path: string): string {
+  const i = path.lastIndexOf('/')
+  return i < 0 ? '' : path.slice(0, i)
+}
+
+export async function createFile(
+  root: DirHandle,
+  parentPath: string,
+  rawName: string,
+): Promise<void> {
+  const problem = validateName(rawName)
+  if (problem) throw new Error(problem)
+  const parent = await resolveDir(root, parentPath)
+  const name = rawName.trim()
+  if (await exists(parent, name)) throw new Error(`"${name}" already exists here.`)
+  const handle = await parent.getFileHandle(name, { create: true })
+  await (await handle.createWritable()).close()
+}
+
+type MovableHandle = FileSystemHandle & {
+  move?: (destinationOrName: DirHandle | string, name?: string) => Promise<void>
+}
+
+async function getEntry(dir: DirHandle, name: string): Promise<FileSystemHandle> {
+  try {
+    return await dir.getFileHandle(name)
+  } catch {
+    return await dir.getDirectoryHandle(name)
+  }
+}
+
+async function copyExact(dest: DirHandle, handle: FileSystemHandle, name: string, depth = 0) {
+  if (depth > MAX_DEPTH) return
+  if (handle.kind === 'file') {
+    const file = await (handle as FileSystemFileHandle).getFile()
+    const out = await dest.getFileHandle(name, { create: true })
+    const writable = await out.createWritable()
+    try {
+      await writable.write(file)
+    } finally {
+      await writable.close()
+    }
+    return
+  }
+  const sub = await dest.getDirectoryHandle(name, { create: true })
+  for await (const child of (handle as DirHandle).values()) {
+    await copyExact(sub, child, child.name, depth + 1)
+  }
+}
+
+/** Moves/renames with the native move() when available, else copy then delete. */
+async function relocate(
+  handle: FileSystemHandle,
+  srcParent: DirHandle,
+  destDir: DirHandle,
+  name: string,
+  sameDir: boolean,
+): Promise<void> {
+  const movable = handle as MovableHandle
+  if (typeof movable.move === 'function') {
+    try {
+      if (sameDir) await movable.move(name)
+      else await movable.move(destDir, name)
+      return
+    } catch {
+      // not supported for this handle: fall back to copy + delete
+    }
+  }
+  const original = handle.name
+  await copyExact(destDir, handle, name)
+  await srcParent.removeEntry(original, { recursive: true })
+}
+
+export async function renameEntry(
+  root: DirHandle,
+  path: string,
+  rawName: string,
+): Promise<void> {
+  const problem = validateName(rawName)
+  if (problem) throw new Error(problem)
+  const name = rawName.trim()
+  const parentPath = parentOf(path)
+  const parent = await resolveDir(root, parentPath)
+  const oldName = path.slice(parentPath ? parentPath.length + 1 : 0)
+  if (name === oldName) return
+  if (await exists(parent, name)) throw new Error(`"${name}" already exists here.`)
+  await relocate(await getEntry(parent, oldName), parent, parent, name, true)
+}
+
+export async function moveEntry(
+  root: DirHandle,
+  srcPath: string,
+  destDirPath: string,
+): Promise<void> {
+  const srcParentPath = parentOf(srcPath)
+  if (srcParentPath === destDirPath) return
+  if (destDirPath === srcPath || destDirPath.startsWith(srcPath + '/')) {
+    throw new Error('A folder cannot be moved into itself.')
+  }
+  const srcParent = await resolveDir(root, srcParentPath)
+  const dest = await resolveDir(root, destDirPath)
+  const name = srcPath.slice(srcParentPath ? srcParentPath.length + 1 : 0)
+  if (await exists(dest, name)) throw new Error(`"${name}" already exists in the destination folder.`)
+  await relocate(await getEntry(srcParent, name), srcParent, dest, name, false)
+}

@@ -4,8 +4,8 @@ A branded **Rockwell/Logix** companion app — _developed by Charles R. Freeman,
 
 A FactoryTalk View–styled "HMI" shell with three panels:
 
-- **Library (left)** — a file explorer for your Rockwell official PDFs and program-file PDFs.
-  Create folders, add files (button or drag-and-drop), delete, and click a PDF to read it in the center panel.
+- **Library (left)** — a VS Code–style explorer for your Rockwell official PDFs and program-file PDFs.
+  Create files and folders inline, rename, delete, drag to move, and click a PDF to read it in the center panel.
 - **Center** — marketing screen (_Logix Assistant, developed by Charles R. Freeman, Software Engineer_) or the file viewer.
 - **AI Assistant (right)** — uses the **Claude Sonnet** model from your VS Code (GitHub Copilot) subscription via the
   bundled bridge extension, with live streaming replies.
@@ -26,6 +26,20 @@ npm run dev      # http://localhost:5173
 ```
 
 Other scripts: `npm run build` (production build to `dist/`), `npm run preview`.
+
+`npm run dev` opens the app in its **own window** (Chrome or Edge app mode, no tabs or address bar), so Windows shows
+the **LA icon** on the taskbar instead of the browser's logo. Right-click the taskbar icon → **Pin to taskbar** to keep
+it. Set `LOGIX_NO_OPEN=1` to skip opening a window.
+
+## Layout
+
+- **Resize** either side panel by dragging the divider (double-click it to reset; arrow keys work when focused).
+  Drag a panel narrower than ~120px and it collapses, like VS Code.
+- **Collapse / show** with the two panel buttons in the top bar, **Ctrl+B** (Explorer) and **Ctrl+Alt+B** (AI Assistant).
+  Sizes and open/closed state are remembered.
+- **Explorer** works like VS Code's: hover for the New File / New Folder / Upload / Refresh / Collapse All buttons,
+  right-click for the menu, **F2** to rename, **Delete** to delete, arrow keys to move around, and drag a file or folder
+  onto another folder to move it (drop files from Windows to add them).
 
 ## First-time setup
 

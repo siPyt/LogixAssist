@@ -4,18 +4,77 @@ import { AUTHOR, buildVsCodeFolderUri, getResourcesPath } from '../config'
 
 interface LogixIconProps {
   size?: number
+  /**
+   * When true the badge is a clickable button that opens the configured
+   * Rockwell/program-file folder in VS Code. When false (the default) it is a
+   * plain, non-interactive marketing graphic.
+   */
+  interactive?: boolean
+}
+
+function LogixBadge({ size }: { size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 112 112"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Logix Assistant badge"
+    >
+      <defs>
+        <linearGradient id="la-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={ftColors.brandRed} />
+          <stop offset="100%" stopColor={ftColors.brandRedDark} />
+        </linearGradient>
+      </defs>
+      <rect
+        x="4"
+        y="4"
+        width="104"
+        height="104"
+        rx="22"
+        fill="url(#la-bg)"
+        stroke={ftColors.brandOrange}
+        strokeWidth="4"
+      />
+      {/* Orange accent bar */}
+      <rect x="20" y="86" width="72" height="6" rx="3" fill={ftColors.brandOrange} />
+      {/* LA letters */}
+      <text
+        x="56"
+        y="64"
+        textAnchor="middle"
+        fontFamily="'Segoe UI', Arial, sans-serif"
+        fontWeight="800"
+        fontSize="48"
+        letterSpacing="1"
+        fill={ftColors.textPrimary}
+      >
+        LA
+      </text>
+    </svg>
+  )
 }
 
 /**
  * The "LA" badge icon in FactoryTalk View colors.
  *
- * - Hover: shows a "by Charles R. Freeman" tooltip.
- * - Click: opens the configured Rockwell/program-file PDF folder in VS Code
- *   using the `vscode://file/...` URI scheme.
+ * By default it is a static graphic (used as the center marketing piece).
+ * Pass `interactive` to make it a button that opens the configured
+ * Rockwell/program-file folder in VS Code via the `vscode://file/...` scheme.
  */
-export function LogixIcon({ size = 112 }: LogixIconProps) {
+export function LogixIcon({ size = 112, interactive = false }: LogixIconProps) {
   const [hovered, setHovered] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+
+  if (!interactive) {
+    return (
+      <div style={{ display: 'inline-block', lineHeight: 0 }}>
+        <LogixBadge size={size} />
+      </div>
+    )
+  }
 
   function openInVsCode() {
     const path = getResourcesPath()
@@ -55,45 +114,7 @@ export function LogixIcon({ size = 112 }: LogixIconProps) {
           borderRadius: 18,
         }}
       >
-        <svg
-          width={size}
-          height={size}
-          viewBox="0 0 112 112"
-          xmlns="http://www.w3.org/2000/svg"
-          role="img"
-        >
-          <defs>
-            <linearGradient id="la-bg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor={ftColors.brandRed} />
-              <stop offset="100%" stopColor={ftColors.brandRedDark} />
-            </linearGradient>
-          </defs>
-          <rect
-            x="4"
-            y="4"
-            width="104"
-            height="104"
-            rx="22"
-            fill="url(#la-bg)"
-            stroke={ftColors.brandOrange}
-            strokeWidth="4"
-          />
-          {/* Orange accent bar */}
-          <rect x="20" y="86" width="72" height="6" rx="3" fill={ftColors.brandOrange} />
-          {/* LA letters */}
-          <text
-            x="56"
-            y="64"
-            textAnchor="middle"
-            fontFamily="'Segoe UI', Arial, sans-serif"
-            fontWeight="800"
-            fontSize="48"
-            letterSpacing="1"
-            fill={ftColors.textPrimary}
-          >
-            LA
-          </text>
-        </svg>
+        <LogixBadge size={size} />
       </button>
 
       {hovered && (
