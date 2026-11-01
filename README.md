@@ -42,8 +42,8 @@ Other scripts: `npm run build` (production build to `dist/`), `npm run preview`.
    code --install-extension logix-assistant-bridge-0.1.0.vsix
    ```
 
-   Then in VS Code run **Logix Assistant: Open App (auto-pair)** from the Command Palette. It opens the app and
-   pairs it. The first message triggers a VS Code prompt asking to allow the extension to use your Copilot
+   Then click **Pair with VS Code** in the app's AI panel (or run **Logix Assistant: Open App (auto-pair)** from the
+   Command Palette). The first message triggers a VS Code prompt asking to allow the extension to use your Copilot
    models — choose **Allow**. See [extension/README.md](./extension/README.md).
 
    The Anthropic API (`ANTHROPIC_API_KEY`, see `.env.example`) is only an optional fallback, for phones or

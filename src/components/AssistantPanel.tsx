@@ -12,6 +12,9 @@ interface AssistantPanelProps {
   onOpenSettings: () => void
 }
 
+/** publisher.name of the bridge extension; used for its vscode:// pairing link. */
+const BRIDGE_EXTENSION_ID = 'logixassist.logix-assistant-bridge'
+
 const POLL_MS = 10000
 
 const STATUS_TEXT: Record<BridgeState['kind'], string> = {
@@ -136,6 +139,11 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
     }
   }
 
+  // Hands off to the bridge extension, which reopens this app with the token.
+  function pairWithVsCode() {
+    window.location.href = `vscode://${BRIDGE_EXTENSION_ID}/pair?app=${encodeURIComponent(window.location.origin)}`
+  }
+
   const viaVsCode = backend === 'vscode'
   const ready = bridge.kind === 'ready'
   const statusClass = !viaVsCode ? 'is-cloud' : ready ? 'is-ready' : bridge.kind === 'checking' ? 'is-checking' : 'is-warn'
@@ -168,19 +176,23 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
           )}
           {bridge.kind === 'needs-token' && (
             <p>
-              The bridge is running. In VS Code run{' '}
-              <strong>“Logix Assistant: Open App (auto-pair)”</strong> to pair this app.
+              The bridge is running. Click <strong>Pair with VS Code</strong> to connect this app.
             </p>
           )}
           {bridge.kind === 'bad-token' && (
             <p>
-              The saved pairing token no longer matches. In VS Code run{' '}
-              <strong>“Logix Assistant: Open App (auto-pair)”</strong> again.
+              The saved pairing token no longer matches. Click <strong>Pair with VS Code</strong>{' '}
+              to connect again.
             </p>
           )}
-          <button type="button" onClick={onOpenSettings}>
-            Open Settings
-          </button>
+          <div className="assistant-help-actions">
+            <button type="button" className="assistant-help-primary" onClick={pairWithVsCode}>
+              Pair with VS Code
+            </button>
+            <button type="button" onClick={onOpenSettings}>
+              Open Settings
+            </button>
+          </div>
         </div>
       )}
 

@@ -304,6 +304,17 @@ body {
 .assistant-help button:hover {
   border-color: var(--brand-orange);
 }
+.assistant-help-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.assistant-help .assistant-help-primary {
+  background: linear-gradient(90deg, var(--brand-red), var(--brand-orange));
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
 .assistant-title {
   font-weight: 700;
   font-size: 14px;

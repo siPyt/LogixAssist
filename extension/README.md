@@ -12,8 +12,9 @@ npm run package
 code --install-extension logix-assistant-bridge-0.1.0.vsix
 ```
 
-Then run **Logix Assistant: Open App (auto-pair)** from the Command Palette. The first chat message makes VS Code ask
-whether the extension may use your Copilot models — choose **Allow**.
+Easiest: in the app's AI panel click **Pair with VS Code** (VS Code may ask to allow the link). You can also run
+**Logix Assistant: Open App (auto-pair)** from the Command Palette. The first chat message makes VS Code ask
+whether the extension may use your Copilot models — choose **Allow**. Pairing is remembered in the browser.
 
 ## Commands
 

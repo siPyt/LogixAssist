@@ -4,6 +4,7 @@ import type * as http from 'node:http'
 import {
   BRIDGE_NAME,
   createBridge,
+  originMatches,
   type ChatMessage,
   type LlmProvider,
   type ModelInfo,
@@ -168,16 +169,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const appUrl = () => config().get<string>('appUrl', 'http://localhost:5173')
 
+  const openApp = async (base: string) => {
+    // The token rides in the URL fragment, which browsers never send to servers.
+    const url = `${base.replace(/\/+$/, '')}/#pair=${await ensureToken()}`
+    await vscode.env.openExternal(vscode.Uri.parse(url))
+  }
+
   context.subscriptions.push(
+    // Lets the app's "Pair with VS Code" button start pairing: vscode://<id>/pair?app=<origin>
+    vscode.window.registerUriHandler({
+      handleUri: async (uri) => {
+        if (uri.path !== '/pair') return
+        const requested = new URLSearchParams(uri.query).get('app') ?? ''
+        const allowed = config().get<string[]>('allowedOrigins', [])
+        const trusted = requested && allowed.some((pattern) => originMatches(requested, pattern))
+        await openApp(trusted ? requested : appUrl())
+      },
+    }),
     vscode.commands.registerCommand('logixAssistant.copyToken', async () => {
       await vscode.env.clipboard.writeText(await ensureToken())
       vscode.window.showInformationMessage('Logix Assistant pairing token copied to the clipboard.')
     }),
-    vscode.commands.registerCommand('logixAssistant.openApp', async () => {
-      // The token rides in the URL fragment, which browsers never send to servers.
-      const url = `${appUrl().replace(/\/+$/, '')}/#pair=${await ensureToken()}`
-      await vscode.env.openExternal(vscode.Uri.parse(url))
-    }),
+    vscode.commands.registerCommand('logixAssistant.openApp', () => openApp(appUrl())),
     vscode.commands.registerCommand('logixAssistant.regenerateToken', async () => {
       await ensureToken(true)
       vscode.window.showInformationMessage(
