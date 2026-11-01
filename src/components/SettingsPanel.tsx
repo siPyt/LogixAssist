@@ -64,7 +64,7 @@ export function SettingsPanel() {
         />
       </label>
 
-      <h3 className="settings-subtitle">AI assistant</h3>
+      <h3 className="settings-subtitle">Logix Advisor</h3>
 
       <label className="settings-field">
         <span>Connect through</span>

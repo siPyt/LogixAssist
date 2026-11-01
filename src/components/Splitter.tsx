@@ -40,7 +40,7 @@ export function Splitter({ side, width, onResize, onReset }: SplitterProps) {
       className="splitter"
       role="separator"
       aria-orientation="vertical"
-      aria-label={side === 'left' ? 'Resize explorer' : 'Resize assistant'}
+      aria-label={side === 'left' ? 'Resize explorer' : 'Resize Logix Advisor'}
       tabIndex={0}
       onPointerDown={onPointerDown}
       onDoubleClick={onReset}

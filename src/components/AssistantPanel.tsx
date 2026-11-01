@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   AI_SETTINGS_EVENT,
-  DEFAULT_AI_MODEL_LABEL,
   getAiBackend,
   getBridgeToken,
   getBridgeUrl,
@@ -27,7 +26,7 @@ const STATUS_TEXT: Record<BridgeState['kind'], string> = {
   offline: 'VS Code bridge not detected',
   'needs-token': 'Pairing needed',
   'bad-token': 'Pairing token rejected',
-  ready: 'Connected to VS Code',
+  ready: 'Connected',
 }
 
 /**
@@ -45,7 +44,6 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [backend, setBackend] = useState(getAiBackend())
   const [bridge, setBridge] = useState<BridgeState>({ kind: 'checking' })
-  const [activeModel, setActiveModel] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -71,7 +69,6 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
         }
         if (cancelled) return
         setBridge(state)
-        if (state.kind === 'ready') setActiveModel(state.model)
       } finally {
         running = false
       }
@@ -103,7 +100,7 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
     const controller = new AbortController()
     abortRef.current = controller
     setMessages([...history, { role: 'assistant', content: '' }])
-    const result = await streamChat(
+    await streamChat(
       getBridgeUrl(),
       getBridgeToken(),
       history,
@@ -114,7 +111,6 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
         }),
       controller.signal,
     )
-    if (result.model) setActiveModel(result.model)
   }
 
   async function sendViaCloud(history: ChatMessage[]) {
@@ -179,22 +175,16 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
   const viaVsCode = backend === 'vscode'
   const ready = bridge.kind === 'ready'
   const statusClass = !viaVsCode ? 'is-cloud' : ready ? 'is-ready' : bridge.kind === 'checking' ? 'is-checking' : 'is-warn'
-  const modelLabel = viaVsCode ? (activeModel ?? DEFAULT_AI_MODEL_LABEL) : 'Anthropic API'
 
   return (
-    <aside className="assistant" aria-label="AI assistant">
+    <aside className="assistant" aria-label="Logix Advisor">
       <header className="assistant-header">
         <span className={`assistant-dot ${statusClass}`} aria-hidden="true" />
-        <span className="assistant-title">AI Assistant</span>
-        <span className="assistant-model" title="Model in use">
-          {modelLabel}
-        </span>
+        <span className="assistant-title">Logix Advisor</span>
       </header>
 
       <div className={`assistant-status ${statusClass}`} role="status">
-        {viaVsCode
-          ? `${STATUS_TEXT[bridge.kind]}${ready && activeModel ? ` · ${activeModel}` : ''}`
-          : 'Using the Anthropic API'}
+        {viaVsCode ? STATUS_TEXT[bridge.kind] : 'Connected'}
       </div>
 
       {viaVsCode && !ready && bridge.kind !== 'checking' && (
@@ -202,7 +192,7 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
           {bridge.kind === 'offline' && (
             <p>
               Install the <strong>Logix Assistant Bridge</strong> extension in VS Code and keep VS
-              Code open. It lets this app use the Claude Sonnet model from your Copilot
+              Code open. It connects Logix Advisor through your Copilot
               subscription — no API key needed.
             </p>
           )}
@@ -245,8 +235,8 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Message the assistant…"
-          aria-label="Message the assistant"
+          placeholder="Ask Logix Advisor…"
+          aria-label="Message Logix Advisor"
         />
         <button type="button" onClick={() => void send()} disabled={busy || !input.trim()}>
           Send

@@ -93,8 +93,8 @@ export default function App() {
             className={'icon-btn' + (layout.rightOpen ? ' is-on' : '')}
             onClick={() => toggle('right')}
             aria-pressed={layout.rightOpen}
-            title="Toggle AI Assistant (Ctrl+Alt+B)"
-            aria-label="Toggle AI Assistant"
+            title="Toggle Logix Advisor (Ctrl+Alt+B)"
+            aria-label="Toggle Logix Advisor"
           >
             <PanelIcon side="right" filled={layout.rightOpen} />
           </button>
