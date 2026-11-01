@@ -2,35 +2,48 @@
 
 A branded **Rockwell/Logix** companion app — _developed by Charles R. Freeman, Software Engineer_.
 
-It presents a FactoryTalk View–styled "HMI" shell with:
+A FactoryTalk View–styled "HMI" shell with three panels:
 
-- An **LA** badge icon in the Rockwell color palette (brand red `#CD163F`, orange `#F58025`).
-  - **Hover** → tooltip: _by Charles R. Freeman_.
-  - **Click** → opens your local PDF library in VS Code via the `vscode://file/...` URI scheme.
-- A center **marketing screen**: _Logix Assistant, developed by Charles R. Freeman, Software Engineer_.
-- An **AI Assistant** panel defaulting to the **Claude Sonnet 5.5** agent.
+- **Library (left)** — a file explorer for your Rockwell official PDFs and program-file PDFs.
+  Create folders, add files (button or drag-and-drop), delete, and click a PDF to read it in the center panel.
+- **Center** — marketing screen (_Logix Assistant, developed by Charles R. Freeman, Software Engineer_) or the file viewer.
+- **AI Assistant (right)** — defaults to the **Claude Sonnet 5.5** agent.
 
-## Tech
+The **LA** badge (Rockwell brand red `#CD163F` / orange `#F58025`):
 
-- React + TypeScript + Vite (deploys to Vercel).
-- `api/chat.ts` serverless function proxies the assistant to Anthropic (key stays server-side).
+- **Hover** → _by Charles R. Freeman_.
+- **Click** → opens your library folder in VS Code via `vscode://file/...`.
 
-## Develop
+## Run it
+
+Double-click **`start.bat`**, or:
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # production build -> dist/
 ```
+
+Other scripts: `npm run build` (production build to `dist/`), `npm run preview`.
+
+## First-time setup
+
+1. **Library folder** — in the left panel click **Choose library folder** and pick the folder that holds your PDFs
+   (e.g. `resources/` in this project). Use **Chrome or Edge**. The app remembers the folder; after a browser restart
+   click **Reconnect folder** once to re-grant access. Other browsers can use **Use browser storage instead**.
+2. **VS Code path** — open **Settings** and set the absolute path of that same folder so the LA badge opens it in VS Code.
+3. **AI assistant** — copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`. Restart `npm run dev`.
+   The model defaults to `claude-sonnet-5.5`; override with `ANTHROPIC_MODEL` if your API account uses a different id.
 
 ## Deploy (Vercel)
 
 1. Import the GitHub repo into Vercel (framework preset: **Vite**).
-2. Add an environment variable `ANTHROPIC_API_KEY` to enable the AI Assistant.
-3. Deploy.
+2. Add `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`) under Settings → Environment Variables.
+3. Deploy. The `api/chat.ts` function keeps the key server-side.
 
-## Resource library
+On Vercel the Library panel still works (it uses your browser's folder access), but the LA badge's
+`vscode://` link only works on a machine that has VS Code installed.
 
-The LA badge opens the folder set in **Settings** (default: [resources/](./resources)).
-Drop your Rockwell official PDFs and program-file PDFs there. VS Code must be
-installed on the viewing machine. See [resources/README.md](./resources/README.md).
+## Tech
+
+React + TypeScript + Vite. Library uses the browser File System Access API. `api/chat.ts` is the Vercel
+serverless function; `vite.config.ts` serves it at `/api/chat` during `npm run dev`.

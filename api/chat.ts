@@ -1,11 +1,11 @@
 /**
  * Vercel serverless function: AI assistant proxy.
  *
- * Defaults to the Claude Sonnet 5.5 agent. Proxies chat turns to the Anthropic
- * Messages API when ANTHROPIC_API_KEY is set as a Vercel environment variable.
- * Keeping the key server-side means it is never exposed to the browser.
+ * Proxies chat turns to the Anthropic Messages API using ANTHROPIC_API_KEY
+ * (set it in Vercel project env vars, or in a local .env for `npm run dev`).
+ * The key stays server-side and is never sent to the browser.
  *
- * Request body:  { model?: string, messages: { role, content }[] }
+ * Request body:  { messages: { role, content }[] }
  * Response body: { reply: string }
  */
 
@@ -14,38 +14,56 @@ interface ChatMessage {
   content: string
 }
 
-// Maps the app's friendly default to a concrete Anthropic model id.
-const MODEL_MAP: Record<string, string> = {
-  'claude-sonnet-5.5': 'claude-sonnet-4-5',
+const DEFAULT_MODEL = 'claude-sonnet-5.5'
+const MAX_MESSAGES = 40
+const MAX_CHARS = 20000
+
+const SYSTEM_PROMPT =
+  'You are Logix Assistant, a helpful assistant for Rockwell Automation / Studio 5000 Logix programming, created by Charles R. Freeman.'
+
+function text(body: string, status: number): Response {
+  return new Response(body, { status })
 }
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 })
-  }
+function isMessage(value: unknown): value is ChatMessage {
+  if (typeof value !== 'object' || value === null) return false
+  const m = value as Record<string, unknown>
+  return (
+    (m.role === 'user' || m.role === 'assistant') &&
+    typeof m.content === 'string' &&
+    m.content.length > 0 &&
+    m.content.length <= MAX_CHARS
+  )
+}
 
+export async function POST(request: Request): Promise<Response> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    return new Response(
-      'AI assistant is not configured. Set ANTHROPIC_API_KEY in your Vercel project environment variables to enable the Claude Sonnet 5.5 agent.',
-      { status: 503 },
+    return text(
+      'AI assistant is not configured. Set ANTHROPIC_API_KEY (Vercel env vars, or a local .env file) to enable it.',
+      503,
     )
   }
 
-  let body: { model?: string; messages?: ChatMessage[] }
+  let body: { messages?: unknown }
   try {
-    body = await req.json()
+    body = (await request.json()) as { messages?: unknown }
   } catch {
-    return new Response('Invalid JSON body', { status: 400 })
+    return text('Invalid JSON body', 400)
   }
 
-  const messages = body.messages ?? []
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return new Response('No messages provided', { status: 400 })
+  const messages = body.messages
+  if (
+    !Array.isArray(messages) ||
+    messages.length === 0 ||
+    messages.length > MAX_MESSAGES ||
+    !messages.every(isMessage)
+  ) {
+    return text('Invalid messages', 400)
   }
 
-  const requested = body.model ?? 'claude-sonnet-5.5'
-  const model = MODEL_MAP[requested] ?? 'claude-sonnet-4-5'
+  // The model is chosen server-side so clients cannot select arbitrary models.
+  const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -58,15 +76,17 @@ export default async function handler(req: Request): Promise<Response> {
       body: JSON.stringify({
         model,
         max_tokens: 1024,
-        system:
-          'You are Logix Assistant, a helpful assistant for Rockwell Automation / Studio 5000 Logix programming, created by Charles R. Freeman.',
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        system: SYSTEM_PROMPT,
+        messages: messages.map((m: ChatMessage) => ({
+          role: m.role,
+          content: m.content,
+        })),
       }),
     })
 
     if (!res.ok) {
       const detail = await res.text()
-      return new Response(`Assistant error: ${detail}`, { status: 502 })
+      return text(`Assistant error (${res.status}): ${detail}`, 502)
     }
 
     const data = (await res.json()) as {
@@ -85,6 +105,6 @@ export default async function handler(req: Request): Promise<Response> {
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    return new Response(`Assistant request failed: ${message}`, { status: 502 })
+    return text(`Assistant request failed: ${message}`, 502)
   }
 }

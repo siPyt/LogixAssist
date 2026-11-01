@@ -2,15 +2,42 @@ import { useState } from 'react'
 import { MarketingScreen } from './components/MarketingScreen'
 import { AssistantPanel } from './components/AssistantPanel'
 import { SettingsPanel } from './components/SettingsPanel'
+import { ExplorerPanel } from './components/ExplorerPanel'
+import { FileViewer } from './components/FileViewer'
+import { LogixIcon } from './components/LogixIcon'
+import { useLibrary } from './lib/useLibrary'
+import type { TreeNode } from './lib/fs'
 import { APP_NAME, AUTHOR } from './config'
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false)
+  const [openFile, setOpenFile] = useState<TreeNode | null>(null)
+  const library = useLibrary()
+
+  function handleOpenFile(node: TreeNode) {
+    setShowSettings(false)
+    setOpenFile(node)
+  }
+
+  function handleRemoved(path: string) {
+    if (openFile && (openFile.path === path || openFile.path.startsWith(path + '/'))) {
+      setOpenFile(null)
+    }
+  }
+
+  let center = <MarketingScreen />
+  if (showSettings) center = <SettingsPanel />
+  else if (openFile) {
+    center = <FileViewer node={openFile} onClose={() => setOpenFile(null)} />
+  }
 
   return (
     <div className="app-shell">
       <header className="app-topbar">
-        <span className="app-brand">{APP_NAME}</span>
+        <span className="app-brand-group">
+          <LogixIcon size={34} />
+          <span className="app-brand">{APP_NAME}</span>
+        </span>
         <button
           type="button"
           className="app-settings-toggle"
@@ -22,8 +49,14 @@ export default function App() {
       </header>
 
       <main className="app-body">
-        <div className="app-center">
-          {showSettings ? <SettingsPanel /> : <MarketingScreen />}
+        <ExplorerPanel
+          library={library}
+          selectedFile={openFile?.path ?? null}
+          onOpenFile={handleOpenFile}
+          onRemoved={handleRemoved}
+        />
+        <div className={'app-center' + (openFile && !showSettings ? ' app-center-viewer' : '')}>
+          {center}
         </div>
         <AssistantPanel />
       </main>

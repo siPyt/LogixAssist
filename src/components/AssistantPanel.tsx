@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DEFAULT_AI_MODEL, DEFAULT_AI_MODEL_LABEL } from '../config'
+import { DEFAULT_AI_MODEL_LABEL } from '../config'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -30,7 +30,7 @@ export function AssistantPanel() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: DEFAULT_AI_MODEL, messages: next }),
+        body: JSON.stringify({ messages: next }),
       })
       if (!res.ok) {
         const detail = await res.text()
