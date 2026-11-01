@@ -1,0 +1,50 @@
+
+
+# AI-Ley generated files and directories
+# Core AI-Ley
+.ai-ley/
+.cache/
+.project/
+
+# AI Assistant configurations
+.github/copilot-instructions.md
+.github/chatmodes/
+.github/prompts/
+.github/copilot-instructions/
+CLAUDE.md
+.claude/
+GEMINI.md
+.gemini/
+.cursor/
+cursor-config.json
+.windsurf/
+windsurf-config.json
+.clinerules/
+.roorules/
+.codex/
+.opencode/
+.metis/
+AGENT.md
+AGENTS.md
+
+# Node / Vite app
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vercel/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.log
+
+# Resource PDFs (keep the folder, not the large binaries)
+resources/*.pdf
+resources/*.PDF
