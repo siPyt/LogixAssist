@@ -44,6 +44,32 @@ export async function probeBridge(baseUrl: string, token: string): Promise<Bridg
   }
 }
 
+/** Asks the bridge for the pairing token. Resolves to the token, or throws a readable error. */
+export async function pairWithBridge(baseUrl: string): Promise<string> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${baseUrl}/pair`, { method: 'POST' }, 4000)
+  } catch {
+    throw new Error(
+      "Can't reach the bridge. Reload the VS Code window (Ctrl+Shift+P → Developer: Reload Window) so the Logix Assistant Bridge starts.",
+    )
+  }
+  if (res.status === 403) {
+    throw new Error(
+      `VS Code doesn't allow ${window.location.origin} yet. Add it to the setting "Logix Assistant: Allowed Origins".`,
+    )
+  }
+  if (res.status === 404) {
+    throw new Error(
+      'VS Code is running an old copy of the bridge. Reload the VS Code window (Ctrl+Shift+P → Developer: Reload Window).',
+    )
+  }
+  if (!res.ok) throw new Error(`Pairing failed (${res.status}).`)
+  const data = (await res.json()) as { token?: string }
+  if (!data.token) throw new Error('Pairing failed: no token returned.')
+  return data.token
+}
+
 export const OFFLINE_HELP =
   "Can't reach the VS Code bridge. Open VS Code with the Logix Assistant Bridge extension installed, then try again."
 

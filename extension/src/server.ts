@@ -130,6 +130,13 @@ export function createBridge(options: BridgeOptions): http.Server {
       return sendJson(res, 200, { ok: true, name: BRIDGE_NAME })
     }
 
+    // One-click pairing for the app. Only browsers from an allowed origin get the
+    // token (the Origin header can't be forged by a web page), so a random site can't.
+    if (path === '/pair' && req.method === 'POST') {
+      if (origin === undefined) return sendJson(res, 403, { error: 'Pairing requires a browser origin' })
+      return sendJson(res, 200, { token: options.getToken() })
+    }
+
     const auth = req.headers.authorization ?? ''
     const supplied = auth.startsWith('Bearer ') ? auth.slice(7) : ''
     if (!supplied || !tokensEqual(supplied, options.getToken())) {

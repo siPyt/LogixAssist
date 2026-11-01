@@ -4,7 +4,6 @@ import type * as http from 'node:http'
 import {
   BRIDGE_NAME,
   createBridge,
-  originMatches,
   type ChatMessage,
   type LlmProvider,
   type ModelInfo,
@@ -127,8 +126,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(status)
 
   let server: http.Server | undefined
+  let retry: NodeJS.Timeout | undefined
+  let loggedBusy = false
   const stop = () =>
     new Promise<void>((resolve) => {
+      clearTimeout(retry)
+      retry = undefined
       if (!server) return resolve()
       server.close(() => resolve())
       server.closeAllConnections?.()
@@ -137,6 +140,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const start = async () => {
     await stop()
+    // The token is shared between VS Code windows; pick up a regenerated one.
+    token = (await context.secrets.get(TOKEN_KEY)) ?? token
     const port = config().get<number>('port', 47821)
     const next = createBridge({
       port,
@@ -146,18 +151,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
     await new Promise<void>((resolve) => {
       next.once('error', (err: NodeJS.ErrnoException) => {
-        const reason =
-          err.code === 'EADDRINUSE'
-            ? `port ${port} is already in use (another VS Code window may be running the bridge)`
-            : err.message
-        output.appendLine(`Bridge could not start: ${reason}`)
-        status.text = '$(circle-slash) Logix Bridge: off'
-        status.tooltip = `Logix Assistant Bridge is not running: ${reason}`
-        status.show()
+        if (err.code === 'EADDRINUSE') {
+          // Another VS Code window owns the bridge: keep trying so this one takes over if it closes.
+          if (!loggedBusy) {
+            output.appendLine(`Port ${port} is in use by another window; will take over if it frees up.`)
+            loggedBusy = true
+          }
+          status.text = '$(sync) Logix Bridge: standby'
+          status.tooltip = `Another VS Code window is running the bridge on port ${port}. This window takes over if it closes.`
+          status.show()
+          retry = setTimeout(() => void start(), 5000)
+        } else {
+          output.appendLine(`Bridge could not start: ${err.message}`)
+          status.text = '$(circle-slash) Logix Bridge: off'
+          status.tooltip = `Logix Assistant Bridge is not running: ${err.message}`
+          status.show()
+        }
         resolve()
       })
       next.listen(port, '127.0.0.1', () => {
         server = next
+        loggedBusy = false
         output.appendLine(`Bridge (${BRIDGE_NAME}) listening on http://127.0.0.1:${port}`)
         status.text = '$(plug) Logix Bridge'
         status.tooltip = `Logix Assistant Bridge on 127.0.0.1:${port} (click for options)`
@@ -176,16 +190,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   context.subscriptions.push(
-    // Lets the app's "Pair with VS Code" button start pairing: vscode://<id>/pair?app=<origin>
-    vscode.window.registerUriHandler({
-      handleUri: async (uri) => {
-        if (uri.path !== '/pair') return
-        const requested = new URLSearchParams(uri.query).get('app') ?? ''
-        const allowed = config().get<string[]>('allowedOrigins', [])
-        const trusted = requested && allowed.some((pattern) => originMatches(requested, pattern))
-        await openApp(trusted ? requested : appUrl())
-      },
-    }),
     vscode.commands.registerCommand('logixAssistant.copyToken', async () => {
       await vscode.env.clipboard.writeText(await ensureToken())
       vscode.window.showInformationMessage('Logix Assistant pairing token copied to the clipboard.')

@@ -5,15 +5,20 @@ import {
   getAiBackend,
   getBridgeToken,
   getBridgeUrl,
+  setAiBackend,
+  setBridgeToken,
 } from '../config'
-import { probeBridge, streamChat, type BridgeState, type ChatMessage } from '../lib/bridge'
+import {
+  pairWithBridge,
+  probeBridge,
+  streamChat,
+  type BridgeState,
+  type ChatMessage,
+} from '../lib/bridge'
 
 interface AssistantPanelProps {
   onOpenSettings: () => void
 }
-
-/** publisher.name of the bridge extension; used for its vscode:// pairing link. */
-const BRIDGE_EXTENSION_ID = 'logixassist.logix-assistant-bridge'
 
 const POLL_MS = 10000
 
@@ -35,6 +40,7 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pairing, setPairing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [backend, setBackend] = useState(getAiBackend())
   const [bridge, setBridge] = useState<BridgeState>({ kind: 'checking' })
@@ -139,9 +145,18 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
     }
   }
 
-  // Hands off to the bridge extension, which reopens this app with the token.
-  function pairWithVsCode() {
-    window.location.href = `vscode://${BRIDGE_EXTENSION_ID}/pair?app=${encodeURIComponent(window.location.origin)}`
+  // Asks the local bridge for its pairing token (allowed origins only) and saves it.
+  async function pairWithVsCode() {
+    setError(null)
+    setPairing(true)
+    try {
+      setBridgeToken(await pairWithBridge(getBridgeUrl()))
+      setAiBackend('vscode')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Pairing failed.')
+    } finally {
+      setPairing(false)
+    }
   }
 
   const viaVsCode = backend === 'vscode'
@@ -186,8 +201,13 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
             </p>
           )}
           <div className="assistant-help-actions">
-            <button type="button" className="assistant-help-primary" onClick={pairWithVsCode}>
-              Pair with VS Code
+            <button
+              type="button"
+              className="assistant-help-primary"
+              onClick={() => void pairWithVsCode()}
+              disabled={pairing}
+            >
+              {pairing ? 'Pairing…' : 'Pair with VS Code'}
             </button>
             <button type="button" onClick={onOpenSettings}>
               Open Settings

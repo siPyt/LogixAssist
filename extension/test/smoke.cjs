@@ -87,6 +87,18 @@ async function main() {
     r = await request('/health', { host: 'evil.com' })
     assert.equal(r.status, 403)
 
+    // pairing: allowed origins get the token, everything else is refused
+    r = await request('/pair', { method: 'POST', headers: { origin: ORIGIN } })
+    assert.equal(r.status, 200)
+    assert.equal(JSON.parse(r.body).token, TOKEN)
+    r = await request('/pair', { method: 'POST', headers: { origin: 'https://evil.com' } })
+    assert.equal(r.status, 403)
+    assert.ok(!r.body.includes(TOKEN))
+    r = await request('/pair', { method: 'POST' })
+    assert.equal(r.status, 403)
+    r = await request('/pair', { method: 'POST', headers: { origin: ORIGIN }, host: 'evil.com' })
+    assert.equal(r.status, 403)
+
     // token required for models and chat
     r = await request('/models', { headers: { origin: ORIGIN } })
     assert.equal(r.status, 401)
