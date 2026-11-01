@@ -13,6 +13,7 @@ The **LA** badge (Rockwell brand red `#CD163F` / orange `#F58025`):
 
 - **Hover** → _by Charles R. Freeman_.
 - **Click** → opens your library folder in VS Code via `vscode://file/...`.
+- Installable as a desktop, mobile, or web app (PWA) — see below.
 
 ## Run it
 
@@ -33,6 +34,22 @@ Other scripts: `npm run build` (production build to `dist/`), `npm run preview`.
 2. **VS Code path** — open **Settings** and set the absolute path of that same folder so the LA badge opens it in VS Code.
 3. **AI assistant** — copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`. Restart `npm run dev`.
    The model defaults to `claude-sonnet-5.5`; override with `ANTHROPIC_MODEL` if your API account uses a different id.
+
+## Install it as an app (desktop, mobile, or web)
+
+Logix Assistant is a PWA, so one codebase covers all three. Open the deployed Vercel site (or a production build),
+then:
+
+- **Windows / Mac / Linux desktop** — in Edge or Chrome click **Install app** in the top bar (or the install icon in the
+  address bar). It gets its own window, Start-menu entry, and LA icon, and the shell works offline.
+- **Android** — Chrome menu → **Install app** / **Add to Home screen**.
+- **iPhone / iPad** — Safari **Share** → **Add to Home Screen**.
+- **Web** — just use the site.
+
+Notes: the install prompt only appears on the deployed (HTTPS) site or a production build, not under `npm run dev`.
+Phones can't open folders on disk, so they use **browser storage** for the Library, and the LA badge's
+`vscode://` link only applies on a computer with VS Code. iOS Safari's file-write support is limited, so adding
+files on iPhone may not work.
 
 ## Deploy (Vercel)
 

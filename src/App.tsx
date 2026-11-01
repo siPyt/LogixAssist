@@ -6,6 +6,7 @@ import { ExplorerPanel } from './components/ExplorerPanel'
 import { FileViewer } from './components/FileViewer'
 import { LogixIcon } from './components/LogixIcon'
 import { useLibrary } from './lib/useLibrary'
+import { useInstallPrompt } from './lib/useInstallPrompt'
 import type { TreeNode } from './lib/fs'
 import { APP_NAME, AUTHOR } from './config'
 
@@ -13,6 +14,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [openFile, setOpenFile] = useState<TreeNode | null>(null)
   const library = useLibrary()
+  const install = useInstallPrompt()
 
   function handleOpenFile(node: TreeNode) {
     setShowSettings(false)
@@ -38,14 +40,26 @@ export default function App() {
           <LogixIcon size={34} />
           <span className="app-brand">{APP_NAME}</span>
         </span>
-        <button
-          type="button"
-          className="app-settings-toggle"
-          onClick={() => setShowSettings((s) => !s)}
-          aria-pressed={showSettings}
-        >
-          {showSettings ? 'Close Settings' : 'Settings'}
-        </button>
+        <span className="app-topbar-actions">
+          {install && (
+            <button
+              type="button"
+              className="app-install"
+              onClick={() => void install()}
+              title="Install Logix Assistant as an app"
+            >
+              Install app
+            </button>
+          )}
+          <button
+            type="button"
+            className="app-settings-toggle"
+            onClick={() => setShowSettings((s) => !s)}
+            aria-pressed={showSettings}
+          >
+            {showSettings ? 'Close Settings' : 'Settings'}
+          </button>
+        </span>
       </header>
 
       <main className="app-body">

@@ -92,6 +92,23 @@ body {
   gap: 12px;
 }
 
+.app-topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-install {
+  background: linear-gradient(90deg, var(--brand-red), var(--brand-orange));
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .app-center {
   display: flex;
   align-items: center;
