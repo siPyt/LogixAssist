@@ -143,7 +143,11 @@ export default function App() {
           />
         )}
         <div className={'panel-slot panel-right' + (layout.rightOpen ? '' : ' is-collapsed')}>
-          <AssistantPanel onOpenSettings={() => setShowSettings(true)} />
+          <AssistantPanel
+            onOpenSettings={() => setShowSettings(true)}
+            tree={library.tree}
+            openPath={openFile?.path ?? null}
+          />
         </div>
       </main>
 

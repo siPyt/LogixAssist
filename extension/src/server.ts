@@ -22,7 +22,7 @@ export interface LlmProvider {
   listModels(): Promise<ModelList>
   chat(
     messages: ChatMessage[],
-    options: { modelId?: string; signal: AbortSignal },
+    options: { modelId?: string; context?: string; signal: AbortSignal },
     onDelta: (text: string) => void,
   ): Promise<{ model: string }>
 }
@@ -36,9 +36,10 @@ export interface BridgeOptions {
 
 export const BRIDGE_NAME = 'logix-assistant-bridge'
 
-const MAX_BODY_BYTES = 256 * 1024
+const MAX_BODY_BYTES = 1024 * 1024
 const MAX_MESSAGES = 40
 const MAX_CHARS = 20000
+const MAX_CONTEXT_CHARS = 150000
 
 /** Exact match, or a pattern where `*` stands for one host label chunk, e.g. https://*.vercel.app */
 export function originMatches(origin: string, pattern: string): boolean {
@@ -155,7 +156,7 @@ export function createBridge(options: BridgeOptions): http.Server {
   }
 
   async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
-    let body: { messages?: unknown; model?: unknown }
+    let body: { messages?: unknown; model?: unknown; context?: unknown }
     try {
       body = JSON.parse(await readBody(req)) as typeof body
     } catch (err) {
@@ -174,6 +175,14 @@ export function createBridge(options: BridgeOptions): http.Server {
     }
     const modelId =
       typeof body.model === 'string' && body.model.length <= 200 ? body.model : undefined
+    if (
+      body.context !== undefined &&
+      body.context !== null &&
+      (typeof body.context !== 'string' || body.context.length > MAX_CONTEXT_CHARS)
+    ) {
+      throw new HttpError(400, 'Invalid context')
+    }
+    const context = typeof body.context === 'string' && body.context ? body.context : undefined
 
     res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -191,7 +200,7 @@ export function createBridge(options: BridgeOptions): http.Server {
     try {
       const result = await provider.chat(
         messages as ChatMessage[],
-        { modelId, signal: abort.signal },
+        { modelId, context, signal: abort.signal },
         (delta) => send({ delta }),
       )
       send({ done: true, model: result.model })

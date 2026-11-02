@@ -80,13 +80,14 @@ export async function streamChat(
   messages: ChatMessage[],
   onDelta: (text: string) => void,
   signal: AbortSignal,
+  context?: string,
 ): Promise<{ model?: string }> {
   let res: Response
   try {
     res = await fetch(`${baseUrl}/chat`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, context }),
       signal,
     })
   } catch (err) {

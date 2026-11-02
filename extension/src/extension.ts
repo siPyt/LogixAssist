@@ -16,6 +16,11 @@ const LOOPBACK_ORIGINS = ['http://localhost:*', 'http://127.0.0.1:*']
 const SYSTEM_PROMPT =
   'You are Logix Assistant, a helpful assistant for Rockwell Automation / Studio 5000 Logix programming, created by Charles R. Freeman.'
 
+const FILES_PROMPT =
+  "The user's project files are open in the Logix Assistant Explorer. Below is the file list plus the excerpts from those files that best match their question. " +
+  'Answer from these excerpts and name the file and page/line you found things in. ' +
+  "If the excerpts don't contain the answer, say what you looked at and which file the user should open or export, rather than saying you have no access to their files."
+
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 function toInfo(m: vscode.LanguageModelChat): ModelInfo {
@@ -61,7 +66,7 @@ class CopilotProvider implements LlmProvider {
 
   async chat(
     messages: ChatMessage[],
-    options: { modelId?: string; signal: AbortSignal },
+    options: { modelId?: string; context?: string; signal: AbortSignal },
     onDelta: (text: string) => void,
   ): Promise<{ model: string }> {
     const models = await vscode.lm.selectChatModels()
@@ -73,13 +78,14 @@ class CopilotProvider implements LlmProvider {
     }
 
     // The LM API has no system role, so the instructions ride on the first user turn.
+    const preface = options.context ? `${SYSTEM_PROMPT}\n\n${FILES_PROMPT}\n\n${options.context}` : SYSTEM_PROMPT
     const chatMessages = messages.map((m, i) =>
       m.role === 'assistant'
         ? vscode.LanguageModelChatMessage.Assistant(m.content)
-        : vscode.LanguageModelChatMessage.User(i === 0 ? `${SYSTEM_PROMPT}\n\n${m.content}` : m.content),
+        : vscode.LanguageModelChatMessage.User(i === 0 ? `${preface}\n\n${m.content}` : m.content),
     )
     if (messages[0]?.role === 'assistant') {
-      chatMessages.unshift(vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT))
+      chatMessages.unshift(vscode.LanguageModelChatMessage.User(preface))
     }
 
     const cancel = new vscode.CancellationTokenSource()

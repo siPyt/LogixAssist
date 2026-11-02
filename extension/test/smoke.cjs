@@ -8,12 +8,14 @@ const TOKEN = 'test-token-123'
 const ORIGIN = 'http://localhost:5173'
 
 let aborted = false
+let seenContext
 const provider = {
   async listModels() {
     const m = { id: 'x', name: 'Claude Sonnet 5.5', family: 'claude-sonnet-5.5', vendor: 'copilot' }
     return { models: [m], selected: m }
   },
-  async chat(messages, { signal, modelId }, onDelta) {
+  async chat(messages, { signal, modelId, context }, onDelta) {
+    seenContext = context
     if (messages[0].content === 'fail') throw new Error('boom')
     if (messages[0].content === 'slow') {
       await new Promise((resolve) => {
@@ -126,6 +128,15 @@ async function main() {
     r = await request('/chat', { method: 'POST', headers: auth, body: chatBody('fail') })
     assert.match(r.body, /"error":"boom"/)
 
+    // file context is forwarded to the provider; bad context is rejected
+    r = await request('/chat', { method: 'POST', headers: auth, body: JSON.stringify({ messages: [{ role: 'user', content: 'ctx' }], context: 'FILE EXCERPT' }) })
+    assert.equal(r.status, 200)
+    assert.equal(seenContext, 'FILE EXCERPT')
+    r = await request('/chat', { method: 'POST', headers: auth, body: JSON.stringify({ messages: [{ role: 'user', content: 'ctx' }], context: 5 }) })
+    assert.equal(r.status, 400)
+    r = await request('/chat', { method: 'POST', headers: auth, body: JSON.stringify({ messages: [{ role: 'user', content: 'ctx' }], context: 'x'.repeat(150001) }) })
+    assert.equal(r.status, 400)
+
     // validation
     r = await request('/chat', { method: 'POST', headers: auth, body: '{"messages":[]}' })
     assert.equal(r.status, 400)
@@ -134,7 +145,7 @@ async function main() {
     r = await request('/chat', { method: 'POST', headers: auth, body: JSON.stringify({ messages: [{ role: 'system', content: 'x' }] }) })
     assert.equal(r.status, 400)
     step = 'oversized body'
-    r = await request('/chat', { method: 'POST', headers: auth, body: 'x'.repeat(300 * 1024) }).catch(() => ({ status: 413 }))
+    r = await request('/chat', { method: 'POST', headers: auth, body: 'x'.repeat(1100 * 1024) }).catch(() => ({ status: 413 }))
     assert.equal(r.status, 413)
     r = await request('/nope', { headers: auth })
     assert.equal(r.status, 404)

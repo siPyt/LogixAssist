@@ -17,9 +17,15 @@ interface ChatMessage {
 const DEFAULT_MODEL = 'claude-sonnet-5.5'
 const MAX_MESSAGES = 40
 const MAX_CHARS = 20000
+const MAX_CONTEXT_CHARS = 150000
 
 const SYSTEM_PROMPT =
   'You are Logix Assistant, a helpful assistant for Rockwell Automation / Studio 5000 Logix programming, created by Charles R. Freeman.'
+
+const FILES_PROMPT =
+  "The user's project files are open in the Logix Assistant Explorer. Below is the file list plus the excerpts from those files that best match their question. " +
+  'Answer from these excerpts and name the file and page/line you found things in. ' +
+  "If the excerpts don't contain the answer, say what you looked at and which file the user should open or export, rather than saying you have no access to their files."
 
 function text(body: string, status: number): Response {
   return new Response(body, { status })
@@ -66,12 +72,15 @@ export async function POST(request: Request): Promise<Response> {
     )
   }
 
-  let body: { messages?: unknown }
+  let body: { messages?: unknown; context?: unknown }
   try {
-    body = (await request.json()) as { messages?: unknown }
+    body = (await request.json()) as { messages?: unknown; context?: unknown }
   } catch {
     return text('Invalid JSON body', 400)
   }
+
+  const context = typeof body.context === 'string' ? body.context.slice(0, MAX_CONTEXT_CHARS) : ''
+  const system = context ? `${SYSTEM_PROMPT}\n\n${FILES_PROMPT}\n\n${context}` : SYSTEM_PROMPT
 
   const messages = body.messages
   if (
@@ -97,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
       body: JSON.stringify({
         model,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system,
         messages: messages.map((m: ChatMessage) => ({
           role: m.role,
           content: m.content,

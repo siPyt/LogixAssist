@@ -14,9 +14,14 @@ import {
   type BridgeState,
   type ChatMessage,
 } from '../lib/bridge'
+import { indexLibrary, type IndexProgress } from '../lib/libraryIndex'
+import { researchFiles } from '../lib/advisor'
+import type { TreeNode } from '../lib/fs'
 
 interface AssistantPanelProps {
   onOpenSettings: () => void
+  tree: TreeNode[]
+  openPath: string | null
 }
 
 const POLL_MS = 10000
@@ -35,10 +40,14 @@ const STATUS_TEXT: Record<BridgeState['kind'], string> = {
  * extension. Settings can switch it to the Anthropic API (/api/chat) instead,
  * which is what phones and other machines without VS Code need.
  */
-export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
+export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [reading, setReading] = useState<IndexProgress | null>(null)
+  const [searching, setSearching] = useState<string | null>(null)
+  const readingRef = useRef<IndexProgress | null>(null)
+  const indexDone = useRef<Promise<void>>(Promise.resolve())
   const [pairing, setPairing] = useState(false)
   const [pairError, setPairError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -96,9 +105,49 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, error])
 
-  async function sendViaBridge(history: ChatMessage[]) {
-    const controller = new AbortController()
-    abortRef.current = controller
+  // Read the Explorer's files so questions can be answered from them.
+  useEffect(() => {
+    indexDone.current = indexLibrary(tree, openPath, (p) => {
+      readingRef.current = p
+      setReading(p)
+    })
+  }, [tree, openPath])
+
+  // Waits briefly for file reading, then lets the model plan and run searches over the files.
+  async function libraryContext(history: ChatMessage[], signal: AbortSignal): Promise<string> {
+    await Promise.race([indexDone.current, new Promise((r) => setTimeout(r, 20000))])
+    const ask = async (prompt: string): Promise<string> => {
+      const one: ChatMessage[] = [{ role: 'user', content: prompt }]
+      if (backend === 'vscode') {
+        let reply = ''
+        await streamChat(getBridgeUrl(), getBridgeToken(), one, (d) => (reply += d), signal)
+        return reply
+      }
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: one }),
+        signal,
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return ((await res.json()) as { reply?: string }).reply ?? ''
+    }
+    try {
+      return await researchFiles({
+        history,
+        tree,
+        openPath,
+        indexing: readingRef.current,
+        ask,
+        onStatus: setSearching,
+        signal,
+      })
+    } finally {
+      setSearching(null)
+    }
+  }
+
+  async function sendViaBridge(history: ChatMessage[], context: string, signal: AbortSignal) {
     setMessages([...history, { role: 'assistant', content: '' }])
     await streamChat(
       getBridgeUrl(),
@@ -109,15 +158,17 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
           const last = m[m.length - 1]
           return [...m.slice(0, -1), { ...last, content: last.content + delta }]
         }),
-      controller.signal,
+      signal,
+      context,
     )
   }
 
-  async function sendViaCloud(history: ChatMessage[]) {
+  async function sendViaCloud(history: ChatMessage[], context: string, signal: AbortSignal) {
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, context }),
+      signal,
     })
     if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`)
     const data = (await res.json()) as { reply?: string }
@@ -132,9 +183,12 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
     setMessages(history)
     setInput('')
     setBusy(true)
+    const controller = new AbortController()
+    abortRef.current = controller
     try {
-      if (backend === 'vscode') await sendViaBridge(history)
-      else await sendViaCloud(history)
+      const context = await libraryContext(history, controller.signal)
+      if (backend === 'vscode') await sendViaBridge(history, context, controller.signal)
+      else await sendViaCloud(history, context, controller.signal)
     } catch (err) {
       if (!(err instanceof DOMException && err.name === 'AbortError')) {
         setError(err instanceof Error ? err.message : 'Unable to reach the assistant.')
@@ -185,6 +239,8 @@ export function AssistantPanel({ onOpenSettings }: AssistantPanelProps) {
 
       <div className={`assistant-status ${statusClass}`} role="status">
         {viaVsCode ? STATUS_TEXT[bridge.kind] : 'Connected'}
+        {reading && ` · Reading files ${reading.done}/${reading.total}`}
+        {searching && ` · ${searching}`}
       </div>
 
       {viaVsCode && !ready && bridge.kind !== 'checking' && (
