@@ -1,3 +1,7 @@
+![Logix Assistant](../images/logo.png)
+
+# Delta V Read Notes
+
 I'll look for the Delta V read tags in your PLC program files.
 
 Search for `delta ?v.?read`
