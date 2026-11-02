@@ -18,6 +18,7 @@ const TEST_RESULT: Record<BridgeState['kind'], string> = {
   offline: 'Bridge not detected. Is VS Code open with the Logix Assistant Bridge extension?',
   'needs-token': 'Bridge found, but no pairing token is saved yet.',
   'bad-token': 'Bridge found, but it rejected this pairing token.',
+  outdated: 'Bridge is an old version. Reload the VS Code window to load the new one.',
   ready: 'Connected.',
 }
 

@@ -6,6 +6,7 @@ export interface ChatMessage {
 export type BridgeState =
   | { kind: 'checking' }
   | { kind: 'offline' }
+  | { kind: 'outdated' }
   | { kind: 'needs-token' }
   | { kind: 'bad-token' }
   | { kind: 'ready'; model: string | null }
@@ -26,8 +27,10 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
 export async function probeBridge(baseUrl: string, token: string): Promise<BridgeState> {
   try {
     const health = await fetchWithTimeout(`${baseUrl}/health`, {}, 2500)
-    const info = health.ok ? ((await health.json()) as { name?: string }) : null
+    const info = health.ok ? ((await health.json()) as { name?: string; features?: string[] }) : null
     if (info?.name !== BRIDGE_NAME) return { kind: 'offline' }
+    // Older bridges ignore file context, so Advisor could not see the Explorer files.
+    if (!info.features?.includes('context')) return { kind: 'outdated' }
     if (!token) return { kind: 'needs-token' }
 
     const models = await fetchWithTimeout(

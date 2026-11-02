@@ -128,7 +128,7 @@ export function createBridge(options: BridgeOptions): http.Server {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname
 
     if (path === '/health' && req.method === 'GET') {
-      return sendJson(res, 200, { ok: true, name: BRIDGE_NAME })
+      return sendJson(res, 200, { ok: true, name: BRIDGE_NAME, features: ['context'] })
     }
 
     // One-click pairing for the app. Only browsers from an allowed origin get the

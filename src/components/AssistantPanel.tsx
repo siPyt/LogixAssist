@@ -31,6 +31,7 @@ const STATUS_TEXT: Record<BridgeState['kind'], string> = {
   offline: 'VS Code bridge not detected',
   'needs-token': 'Pairing needed',
   'bad-token': 'Pairing token rejected',
+  outdated: 'VS Code bridge needs a reload',
   ready: 'Connected',
 }
 
@@ -178,6 +179,10 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
   async function send() {
     const text = input.trim()
     if (!text || busy) return
+    if (backend === 'vscode' && bridge.kind === 'outdated') {
+      setError('VS Code is running an old bridge. Reload the VS Code window (Ctrl+Shift+P → Developer: Reload Window), then ask again.')
+      return
+    }
     setError(null)
     const history: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(history)
@@ -250,6 +255,13 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
               Install the <strong>Logix Assistant Bridge</strong> extension in VS Code and keep VS
               Code open. It connects Logix Advisor through your Copilot
               subscription — no API key needed.
+            </p>
+          )}
+          {bridge.kind === 'outdated' && (
+            <p>
+              VS Code is still running an old copy of the bridge, which can't pass your files to
+              Logix Advisor. In VS Code press <strong>Ctrl+Shift+P</strong> and run{' '}
+              <strong>Developer: Reload Window</strong>. This turns green on its own.
             </p>
           )}
           {(bridge.kind === 'needs-token' || bridge.kind === 'bad-token') && (
