@@ -135,7 +135,19 @@ function folderOf(path: string): string {
 
 const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-async function indexNode(node: TreeNode): Promise<void> {
+const inflight = new Map<string, Promise<void>>()
+
+/** Shares one read between the background indexer and a question that needs the same file now. */
+function indexNode(node: TreeNode): Promise<void> {
+  let job = inflight.get(node.path)
+  if (!job) {
+    job = readNode(node).finally(() => inflight.delete(node.path))
+    inflight.set(node.path, job)
+  }
+  return job
+}
+
+async function readNode(node: TreeNode): Promise<void> {
   const file = await (node.handle as FileSystemFileHandle).getFile()
   const signature = signatureOf(file)
   const existing = index.get(node.path)
@@ -204,6 +216,36 @@ export function indexLibrary(
     }
   })()
   return running
+}
+
+const MAX_PRIORITY_FILES = 12
+
+/**
+ * Files whose folder or file name the question mentions (e.g. "meco"). They are read
+ * immediately, ahead of the background pass, so the answer never lacks the file it was asked about.
+ */
+function mentionedFiles(nodes: TreeNode[], question: string): TreeNode[] {
+  const words = [...new Set((question.toLowerCase().match(/[a-z0-9_]{3,}/g) ?? []).filter((w) => !STOP_WORDS.has(w)))]
+  if (words.length === 0) return []
+  return collectFiles(nodes)
+    .filter((n) => {
+      const segments = n.path.toLowerCase().replace(/\.[^./]+$/, '').split('/')
+      return words.some((w) => segments.some((s) => s === w || (w.length >= 4 && s.includes(w))))
+    })
+    .slice(0, MAX_PRIORITY_FILES)
+}
+
+/** Reads the files the question names, resolving when they are all read (or have failed). */
+export async function indexMentioned(nodes: TreeNode[], question: string): Promise<boolean> {
+  const wanted = mentionedFiles(nodes, question)
+  await Promise.all(
+    wanted.map((n) =>
+      indexNode(n).catch(() => {
+        unreadable.add(n.path)
+      }),
+    ),
+  )
+  return wanted.length > 0
 }
 
 function termsOf(question: string): string[] {
@@ -306,12 +348,21 @@ export function buildContext(
   if (openPath) parts.push(`The user currently has this file open: ${openPath}`)
 
   const readable = [...index.values()]
+  const missing = collectFiles(nodes).filter((n) => !index.has(n.path))
+  const notRead = missing.filter((n) => !unreadable.has(n.path)).map((n) => n.path)
+  const failed = missing.filter((n) => unreadable.has(n.path)).map((n) => n.path)
   parts.push(
     `${readable.length} file(s) were read (PDF and text). ` +
       (indexing ? `Still reading: ${indexing.done}/${indexing.total} files, so results may be incomplete. ` : '') +
       (unreadable.size > 0 ? `${unreadable.size} file(s) could not be read (too large or unreadable). ` : '') +
       'Binary controller files (.ACD, .mer, etc.) cannot be read directly; their exported reports (PDF) or L5X/L5K exports can.',
   )
+  if (notRead.length > 0) {
+    parts.push(
+      `These files have NOT been read yet (still queued), so "no matches" says nothing about them:\n${notRead.slice(0, 20).join('\n')}`,
+    )
+  }
+  if (failed.length > 0) parts.push(`These files failed to read:\n${failed.slice(0, 20).join('\n')}`)
 
   const hits = search(question, openPath)
   const picked: Hit[] = []

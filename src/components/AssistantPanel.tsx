@@ -14,7 +14,7 @@ import {
   type BridgeState,
   type ChatMessage,
 } from '../lib/bridge'
-import { indexLibrary, type IndexProgress } from '../lib/libraryIndex'
+import { indexLibrary, indexMentioned, type IndexProgress } from '../lib/libraryIndex'
 import { researchFiles } from '../lib/advisor'
 import type { TreeNode } from '../lib/fs'
 import { loadChat, loadDraft, saveChat, saveDraft } from '../lib/chatStore'
@@ -125,7 +125,17 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
 
   // Waits briefly for file reading, then lets the model plan and run searches over the files.
   async function libraryContext(history: ChatMessage[], signal: AbortSignal): Promise<string> {
-    await Promise.race([indexDone.current, new Promise((r) => setTimeout(r, 20000))])
+    const question = history
+      .filter((m) => m.role === 'user')
+      .slice(-3)
+      .map((m) => m.content)
+      .join(' ')
+    // Read the files the question names first; they may be far down the background queue.
+    const named = await Promise.race([
+      indexMentioned(tree, question),
+      new Promise<boolean>((r) => setTimeout(() => r(true), 90000)),
+    ])
+    if (!named) await Promise.race([indexDone.current, new Promise((r) => setTimeout(r, 20000))])
     const ask = async (prompt: string): Promise<string> => {
       const one: ChatMessage[] = [{ role: 'user', content: prompt }]
       if (backend === 'vscode') {
