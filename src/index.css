@@ -77,6 +77,21 @@ body.is-resizing iframe {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  white-space: nowrap;
+}
+
+.app-byline {
+  font-size: 13px;
+  color: var(--text-2);
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .app-byline {
+    display: none;
+  }
 }
 
 .app-topbar-actions {

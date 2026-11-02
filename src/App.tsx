@@ -10,7 +10,7 @@ import { useLibrary } from './lib/useLibrary'
 import { useInstallPrompt } from './lib/useInstallPrompt'
 import { useLayout } from './lib/useLayout'
 import type { TreeNode } from './lib/fs'
-import { APP_NAME, AUTHOR } from './config'
+import { APP_NAME, AUTHOR, AUTHOR_TITLE } from './config'
 
 function PanelIcon({ side, filled }: { side: 'left' | 'right'; filled: boolean }) {
   return (
@@ -66,6 +66,9 @@ export default function App() {
         <span className="app-brand-group">
           <LogixIcon size={34} interactive />
           <span className="app-brand">{APP_NAME}</span>
+          <span className="app-byline">
+            {AUTHOR}, {AUTHOR_TITLE}
+          </span>
         </span>
         <span className="app-topbar-actions">
           {install && (
