@@ -123,6 +123,9 @@ function conversation(history: ChatMessage[]): string {
     .join('\n')
 }
 
+/** The bridge rejects any single message over 20,000 characters; stay safely under it. */
+const MAX_PROMPT_CHARS = 19000
+
 function plannerPrompt(
   history: ChatMessage[],
   tree: TreeNode[],
@@ -130,7 +133,7 @@ function plannerPrompt(
   findings: string,
   round: number,
 ): string {
-  return `You are the search planner for Logix Advisor. The user's project files (PDF reports and text exports) are already read and searchable. Plan searches that find the answer to the user's latest question.
+  const build = (found: string) => `You are the search planner for Logix Advisor. The user's project files (PDF reports and text exports) are already read and searchable. Plan searches that find the answer to the user's latest question.
 
 ${PLAYBOOK}
 
@@ -138,12 +141,12 @@ Conversation:
 ${conversation(history)}
 
 ${openPath ? `File open in the viewer: ${openPath}\n` : ''}Files that can be searched:
-${readableFiles().slice(0, 60).join('\n') || '(none read yet)'}
+${readableFiles().join('\n').slice(0, 2500) || '(none read yet)'}
 
 Folders and files:
-${outline(tree).slice(0, 3000)}
+${outline(tree).slice(0, 2500)}
 
-${findings ? `Results so far (round ${round}):\n${findings}\n` : 'No searches have been run yet.\n'}
+${found ? `Results so far (round ${round}), newest last:\n${found}\n` : 'No searches have been run yet.\n'}
 Reply with ONLY a JSON object, no prose:
 {"searches":[{"pattern":"case-insensitive regex","file":"optional substring of a file path"}],"read":[{"file":"substring of a file path","page":12},{"routine":"_080_Alarms_Warnings","rung":34,"file":"optional"}],"done":false}
 - Up to 8 searches. Use several alternative spellings/synonyms in one regex with |.
@@ -151,6 +154,9 @@ Reply with ONLY a JSON object, no prose:
 - Searches already read the rungs that write the matched tags, and the readers of tags with few references. Also read the rungs just before and after any latch/alarm/candidate (n-3 .. n+1). For anything physical (valve, motor, horn), search the control bit by its exact name and read the OUTPUT routine rung.
 - Scope searches with "file" when the question names a program or folder (e.g. "3CSG").
 - Set "done": true only after you have read the rungs behind your best candidate.`
+  // Findings are trimmed to whatever room is left; the full set still reaches the final answer.
+  const room = Math.max(0, MAX_PROMPT_CHARS - build('').length)
+  return build(findings.slice(-room))
 }
 
 /**

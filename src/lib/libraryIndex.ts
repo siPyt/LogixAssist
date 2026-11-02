@@ -61,7 +61,8 @@ function loadPdfjs() {
 }
 
 function signatureOf(file: File): string {
-  return `${file.size}:${file.lastModified}`
+  // The leading number invalidates cached text when the extraction code changes.
+  return `1:${file.size}:${file.lastModified}`
 }
 
 function makeChunk(at: number, text: string): Chunk {
@@ -157,9 +158,63 @@ async function readNode(node: TreeNode): Promise<void> {
     unreadable.add(node.path)
     return
   }
-  const chunks = isPdf ? await extractPdf(file) : splitText(await file.text())
+  const chunks = await cachedChunks(node.path, signature).then(
+    async (hit) => hit ?? (await extract(file, isPdf)),
+  )
   index.set(node.path, { path: node.path, signature, kind: isPdf ? 'pdf' : 'text', chunks })
   unreadable.delete(node.path)
+
+  async function extract(f: File, pdf: boolean): Promise<Chunk[]> {
+    const made = pdf ? await extractPdf(f) : splitText(await f.text())
+    void storeChunks(node.path, signature, made)
+    return made
+  }
+}
+
+const DB_NAME = 'logix-index'
+const STORE = 'files'
+
+function openCache(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+/** Text already extracted on an earlier visit, so a reload doesn't re-read every PDF. */
+async function cachedChunks(path: string, signature: string): Promise<Chunk[] | null> {
+  try {
+    const db = await openCache()
+    const value = await new Promise<{ signature: string; chunks: { at: number; text: string }[] } | undefined>(
+      (resolve, reject) => {
+        const req = db.transaction(STORE).objectStore(STORE).get(path)
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      },
+    )
+    db.close()
+    if (value?.signature !== signature) return null
+    return value.chunks.map((c) => makeChunk(c.at, c.text))
+  } catch {
+    return null
+  }
+}
+
+async function storeChunks(path: string, signature: string, chunks: Chunk[]): Promise<void> {
+  try {
+    const db = await openCache()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite')
+      tx.objectStore(STORE).put({ signature, chunks: chunks.map((c) => ({ at: c.at, text: c.text })) }, path)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    db.close()
+  } catch {
+    // cache is best-effort
+  }
 }
 
 async function runIndex(
@@ -180,16 +235,22 @@ async function runIndex(
   })
 
   let done = 0
-  for (const node of files) {
-    onProgress?.({ done, total: files.length, current: node.name })
-    try {
-      await indexNode(node)
-    } catch {
-      unreadable.add(node.path)
+  let next = 0
+  const worker = async () => {
+    while (next < files.length) {
+      const node = files[next++]
+      onProgress?.({ done, total: files.length, current: node.name })
+      try {
+        await indexNode(node)
+      } catch {
+        unreadable.add(node.path)
+      }
+      done++
+      await yieldToUi()
     }
-    done++
-    await yieldToUi()
   }
+  // A few files at a time: pdf.js does its parsing off the main thread.
+  await Promise.all(Array.from({ length: Math.min(READ_PARALLEL, files.length) }, worker))
   onProgress?.(null)
 }
 
@@ -219,6 +280,7 @@ export function indexLibrary(
 }
 
 const MAX_PRIORITY_FILES = 12
+const READ_PARALLEL = 3
 
 /**
  * Files whose folder or file name the question mentions (e.g. "meco"). They are read
