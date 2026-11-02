@@ -14,6 +14,8 @@ const DEFAULTS: LayoutState = { left: 290, right: 380, leftOpen: true, rightOpen
 const MIN = { left: 200, right: 300 }
 /** Net width taken by the two 1px splitter lines. */
 const SPLITTER_SPACE = 2
+/** The center area always keeps this much room (matches .app-center min-width). */
+const CENTER_MIN = 240
 /** Dragging a panel narrower than this collapses it, like VS Code. */
 const SNAP_CLOSED = 120
 
@@ -53,9 +55,9 @@ export function useLayout() {
   const resizeTo = useCallback((side: Side, raw: number) => {
     setLayout((l) => {
       if (raw < SNAP_CLOSED) return side === 'left' ? { ...l, leftOpen: false } : { ...l, rightOpen: false }
-      // No fixed maximum: a panel may take the whole window, leaving only the other open panel.
+      // No fixed maximum: a panel grows until the center area is down to its minimum width.
       const otherWidth = side === 'left' ? (l.rightOpen ? l.right : 0) : l.leftOpen ? l.left : 0
-      const max = Math.max(MIN[side], window.innerWidth - otherWidth - SPLITTER_SPACE)
+      const max = Math.max(MIN[side], window.innerWidth - otherWidth - CENTER_MIN - SPLITTER_SPACE)
       const width = Math.min(max, Math.max(MIN[side], Math.round(raw)))
       return side === 'left' ? { ...l, left: width, leftOpen: true } : { ...l, right: width, rightOpen: true }
     })
