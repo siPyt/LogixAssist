@@ -418,6 +418,32 @@ export function readPage(fileFilter: string, at: number, maxChars = 6000): Match
   return null
 }
 
+function pageText(file: IndexedFile, at: number): string {
+  return file.chunks.filter((c) => c.at === at).map((c) => c.text).join('\n')
+}
+
+/**
+ * The ladder-report page that holds a given rung of a routine, plus the next page because
+ * a rung's instructions often continue there. PDF reports only.
+ */
+export function readRung(routine: string, rung: number, fileFilter?: string, maxChars = 6000): Match | null {
+  const filter = fileFilter?.toLowerCase()
+  const header = `${routine.trim().split('/').pop()} - Ladder Diagram`.toLowerCase()
+  const start = new RegExp(`(^|\\n)${Math.trunc(rung)}(\\s|$)`)
+  for (const file of index.values()) {
+    if (file.kind !== 'pdf' || (filter && !file.path.toLowerCase().includes(filter))) continue
+    const pages = [...new Set(file.chunks.map((c) => c.at))].sort((a, b) => a - b)
+    for (const n of pages) {
+      const text = pageText(file, n)
+      if (!text.toLowerCase().includes(header) || !start.test(text)) continue
+      const next = pageText(file, n + 1)
+      const both = next.toLowerCase().includes(header) ? `${text}\n${next}` : text
+      return { path: file.path, at: n, kind: 'pdf', text: both.slice(0, maxChars) }
+    }
+  }
+  return null
+}
+
 export function describeMatch(m: Match): string {
   return `--- ${m.path} (${m.kind === 'pdf' ? 'page' : 'line'} ${m.at}) ---\n${m.text}`
 }
