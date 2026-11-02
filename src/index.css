@@ -422,6 +422,20 @@ body.is-resizing .splitter::after {
   font-weight: 700;
   font-size: 14px;
 }
+.assistant-new {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.assistant-new:hover {
+  color: var(--text);
+  border-color: var(--brand-orange);
+}
 .assistant-model {
   margin-left: auto;
   font-size: 11px;

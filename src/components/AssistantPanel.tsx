@@ -17,6 +17,7 @@ import {
 import { indexLibrary, type IndexProgress } from '../lib/libraryIndex'
 import { researchFiles } from '../lib/advisor'
 import type { TreeNode } from '../lib/fs'
+import { loadChat, loadDraft, saveChat, saveDraft } from '../lib/chatStore'
 
 interface AssistantPanelProps {
   onOpenSettings: () => void
@@ -43,8 +44,8 @@ const STATUS_TEXT: Record<BridgeState['kind'], string> = {
  * which is what phones and other machines without VS Code need.
  */
 export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<ChatMessage[]>(loadChat)
+  const [input, setInput] = useState(loadDraft)
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState<IndexProgress | null>(null)
   const [searching, setSearching] = useState<string | null>(null)
@@ -106,6 +107,13 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [messages, error])
+
+  // Saved once a reply finishes streaming, not on every token.
+  useEffect(() => {
+    if (!busy) saveChat(messages)
+  }, [messages, busy])
+
+  useEffect(() => saveDraft(input), [input])
 
   // Read the Explorer's files so questions can be answered from them.
   useEffect(() => {
@@ -245,6 +253,20 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
       <header className="assistant-header">
         <span className={`assistant-dot ${statusClass}`} aria-hidden="true" />
         <span className="assistant-title">Logix Advisor</span>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className="assistant-new"
+            onClick={() => {
+              abortRef.current?.abort()
+              setMessages([])
+              setError(null)
+            }}
+            title="Clear this conversation and start a new one"
+          >
+            New chat
+          </button>
+        )}
       </header>
 
       <div className={`assistant-status ${statusClass}`} role="status">
