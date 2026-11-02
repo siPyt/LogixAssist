@@ -9,7 +9,7 @@ Language Model API.
 ```bash
 npm install
 npm run package
-code --install-extension logix-assistant-bridge-0.1.0.vsix
+code --install-extension logix-assistant-bridge-0.2.1.vsix
 ```
 
 The app pairs itself automatically when it finds the bridge (the bridge only hands its token to the allowed origins
