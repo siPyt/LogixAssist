@@ -7,6 +7,7 @@ export type BridgeState =
   | { kind: 'checking' }
   | { kind: 'offline' }
   | { kind: 'outdated' }
+  | { kind: 'no-model' }
   | { kind: 'needs-token' }
   | { kind: 'bad-token' }
   | { kind: 'ready'; model: string | null }
@@ -30,7 +31,9 @@ export async function probeBridge(baseUrl: string, token: string): Promise<Bridg
     const info = health.ok ? ((await health.json()) as { name?: string; features?: string[] }) : null
     if (info?.name !== BRIDGE_NAME) return { kind: 'offline' }
     // Older bridges ignore file context, so Advisor could not see the Explorer files.
-    if (!info.features?.includes('context')) return { kind: 'outdated' }
+    if (!info.features?.includes('context') || !info.features.includes('sonnet-5.5-only')) {
+      return { kind: 'outdated' }
+    }
     if (!token) return { kind: 'needs-token' }
 
     const models = await fetchWithTimeout(
@@ -41,7 +44,8 @@ export async function probeBridge(baseUrl: string, token: string): Promise<Bridg
     if (models.status === 401) return { kind: 'bad-token' }
     if (!models.ok) return { kind: 'offline' }
     const data = (await models.json()) as { selected?: { name?: string } | null }
-    return { kind: 'ready', model: data.selected?.name ?? null }
+    if (!data.selected) return { kind: 'no-model' }
+    return { kind: 'ready', model: data.selected.name ?? null }
   } catch {
     return { kind: 'offline' }
   }

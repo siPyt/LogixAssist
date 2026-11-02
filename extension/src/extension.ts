@@ -18,62 +18,38 @@ const SYSTEM_PROMPT =
 
 const FILES_PROMPT =
   "The user's project files are open in the Logix Assistant Explorer. Below is the file list plus the excerpts from those files that best match their question. " +
-  'Answer from these excerpts and name the file and page/line you found things in. ' +
+  'Answer from these excerpts and name the file and page/line you found things in. Follow the answer rules included with them exactly. ' +
   "If the excerpts don't contain the answer, say what you looked at and which file the user should open or export, rather than saying you have no access to their files."
 
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** The only model Logix Assistant is allowed to use. There is no fallback to other models. */
+export const REQUIRED_MODEL = 'Claude Sonnet 5.5'
+const REQUIRED_KEY = normalize(REQUIRED_MODEL)
 
 function toInfo(m: vscode.LanguageModelChat): ModelInfo {
   return { id: m.id, name: m.name, family: m.family, vendor: m.vendor }
 }
 
-/** Highest dotted version found in a model family/name, e.g. "claude-sonnet-4.5" -> 4.5 */
-function versionOf(m: vscode.LanguageModelChat): number {
-  const match = /(\d+(?:\.\d+)?)/.exec(m.family) ?? /(\d+(?:\.\d+)?)/.exec(m.name)
-  return match ? parseFloat(match[1]) : 0
-}
-
-function pickModel(
-  models: vscode.LanguageModelChat[],
-  requestedId: string | undefined,
-  preferred: string,
-): vscode.LanguageModelChat | undefined {
-  if (requestedId) {
-    const exact = models.find((m) => m.id === requestedId)
-    if (exact) return exact
-  }
-  const want = normalize(preferred)
-  const preferredMatch = models.find(
-    (m) => normalize(m.family) === want || normalize(m.name) === want || normalize(m.id) === want,
-  )
-  if (preferredMatch) return preferredMatch
-  const sonnets = models
-    .filter((m) => /sonnet/i.test(m.family) || /sonnet/i.test(m.name))
-    .sort((a, b) => versionOf(b) - versionOf(a))
-  return sonnets[0] ?? models[0]
+function pickModel(models: vscode.LanguageModelChat[]): vscode.LanguageModelChat | undefined {
+  return models.find((m) => [m.family, m.name, m.id].some((v) => normalize(v).includes(REQUIRED_KEY)))
 }
 
 class CopilotProvider implements LlmProvider {
-  private preferred(): string {
-    return vscode.workspace.getConfiguration('logixAssistant').get<string>('model', 'claude-sonnet-5.5')
-  }
-
   async listModels(): Promise<ModelList> {
-    const models = await vscode.lm.selectChatModels()
-    const selected = pickModel(models, undefined, this.preferred())
-    return { models: models.map(toInfo), selected: selected ? toInfo(selected) : null }
+    const selected = pickModel(await vscode.lm.selectChatModels())
+    return { models: selected ? [toInfo(selected)] : [], selected: selected ? toInfo(selected) : null }
   }
 
   async chat(
     messages: ChatMessage[],
-    options: { modelId?: string; context?: string; signal: AbortSignal },
+    options: { context?: string; signal: AbortSignal },
     onDelta: (text: string) => void,
   ): Promise<{ model: string }> {
-    const models = await vscode.lm.selectChatModels()
-    const model = pickModel(models, options.modelId, this.preferred())
+    const model = pickModel(await vscode.lm.selectChatModels())
     if (!model) {
       throw new Error(
-        'No VS Code language models are available. Make sure you are signed in to GitHub Copilot in VS Code.',
+        `${REQUIRED_MODEL} is not available in VS Code. Sign in to GitHub Copilot and enable ${REQUIRED_MODEL} in the Copilot model picker. Logix Assistant will not use any other model.`,
       )
     }
 

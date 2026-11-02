@@ -22,7 +22,7 @@ export interface LlmProvider {
   listModels(): Promise<ModelList>
   chat(
     messages: ChatMessage[],
-    options: { modelId?: string; context?: string; signal: AbortSignal },
+    options: { context?: string; signal: AbortSignal },
     onDelta: (text: string) => void,
   ): Promise<{ model: string }>
 }
@@ -128,7 +128,7 @@ export function createBridge(options: BridgeOptions): http.Server {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname
 
     if (path === '/health' && req.method === 'GET') {
-      return sendJson(res, 200, { ok: true, name: BRIDGE_NAME, features: ['context'] })
+      return sendJson(res, 200, { ok: true, name: BRIDGE_NAME, features: ['context', 'sonnet-5.5-only'] })
     }
 
     // One-click pairing for the app. Only browsers from an allowed origin get the
@@ -156,7 +156,7 @@ export function createBridge(options: BridgeOptions): http.Server {
   }
 
   async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
-    let body: { messages?: unknown; model?: unknown; context?: unknown }
+    let body: { messages?: unknown; context?: unknown }
     try {
       body = JSON.parse(await readBody(req)) as typeof body
     } catch (err) {
@@ -173,8 +173,6 @@ export function createBridge(options: BridgeOptions): http.Server {
     ) {
       throw new HttpError(400, 'Invalid messages')
     }
-    const modelId =
-      typeof body.model === 'string' && body.model.length <= 200 ? body.model : undefined
     if (
       body.context !== undefined &&
       body.context !== null &&
@@ -200,7 +198,7 @@ export function createBridge(options: BridgeOptions): http.Server {
     try {
       const result = await provider.chat(
         messages as ChatMessage[],
-        { modelId, context, signal: abort.signal },
+        { context, signal: abort.signal },
         (delta) => send({ delta }),
       )
       send({ done: true, model: result.model })

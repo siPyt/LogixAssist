@@ -24,7 +24,7 @@ const SYSTEM_PROMPT =
 
 const FILES_PROMPT =
   "The user's project files are open in the Logix Assistant Explorer. Below is the file list plus the excerpts from those files that best match their question. " +
-  'Answer from these excerpts and name the file and page/line you found things in. ' +
+  'Answer from these excerpts and name the file and page/line you found things in. Follow the answer rules included with them exactly. ' +
   "If the excerpts don't contain the answer, say what you looked at and which file the user should open or export, rather than saying you have no access to their files."
 
 function text(body: string, status: number): Response {
@@ -44,7 +44,7 @@ async function describeUpstreamError(res: Response, model: string): Promise<stri
     return 'Anthropic rejected the API key. Check ANTHROPIC_API_KEY in your .env file (or Vercel environment variables).'
   }
   if (res.status === 404 || /model/i.test(detail)) {
-    return `Anthropic does not recognise the model "${model}". Set ANTHROPIC_MODEL to a model id available to your account.`
+    return `Anthropic does not recognise the model "${model}". Claude Sonnet 5.5 must be available to your Anthropic account; no other model is used.`
   }
   if (res.status === 429) {
     return 'Anthropic rate limit reached. Wait a moment and try again.'
@@ -92,8 +92,8 @@ export async function POST(request: Request): Promise<Response> {
     return text('Invalid messages', 400)
   }
 
-  // The model is chosen server-side so clients cannot select arbitrary models.
-  const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
+  // Fixed server-side: only Claude Sonnet 5.5 is ever used, and clients cannot select a model.
+  const model = DEFAULT_MODEL
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {

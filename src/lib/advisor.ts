@@ -14,9 +14,11 @@ import type { Match } from './libraryIndex'
 export type Ask = (prompt: string) => Promise<string>
 
 const MAX_ROUNDS = 4
-const MAX_FINDINGS_CHARS = 45000
+const MAX_FINDINGS_CHARS = 60000
 const BASELINE_CHARS = 12000
-const MAX_AUTO_RUNGS = 6
+const MAX_AUTO_RUNGS = 8
+/** A tag with this many references or fewer has all of its readers followed, not just its writers. */
+const SMALL_TAG_REFS = 8
 
 /** Cross-reference line: Tag - Program/Routine - *35(OTL), 34(XIC). A leading * marks a write. */
 const XREF = /(\S+) - \w+\/(\w+) - ((?:\*?\d+\([A-Z]+\)(?:, ?)?)+)/g
@@ -32,13 +34,24 @@ const PLAYBOOK = `How to read Rockwell/Studio 5000 project reports and exports:
   1. Change detection: a self-resetting TON (its own /DN in series) opens a window; at DN the logic compares a value from the other device (a clock minute/second, a counter, a toggling bit: Current_* vs Previous_*) with a NEQ/EQU/MOV. No change for N windows (a CTU with a small preset) latches a "Communications" warning/alarm. Names like Comm_Timer, Comm_Counter, Previous_Minute, Warning_..._Communications are the heartbeat monitor.
   2. Toggle/produce: a timer/ONS flips a bit that is written into a produced, network, OIT/HMI or DCS buffer tag; the other side watches it.
   3. Module fault bits (GSV/ConnectionFaulted, ENBT/ENET status) driving a comms alarm.
-- A free-running timer that drives a bit (Pulse, Flash, Blink) is usually just a lamp/horn flasher. It is NOT a heartbeat unless that bit is written to a network/produced/buffer tag or compared on a timeout. Read where the bit is used before calling it a heartbeat.`
+- A free-running timer that drives a bit (Pulse, Flash, Blink) is usually just a lamp/horn flasher. It is NOT a heartbeat unless that bit is written to a network/produced/buffer tag or compared on a timeout. Read where the bit is used before calling it a heartbeat.
+- "What happens when X?" questions (alarm, divert, shutdown): follow the chain input -> detection rung -> alarm/latch rungs -> control bit rung -> OUTPUT routine (discrete output / valve / motor) -> horn, OIT message, DCS/Delta V mapping -> master shutdown rung (say whether it is or is NOT in it) -> any follow-on timers and alarms. Cover every link or say which one the files do not contain.
+- Output routines are usually named OUTPUT_MAP, IO_MAP, Outputs; the Delta V / DCS / OIT links are usually DELTA_V, OIT, NETWORK_BUFFER routines. Search the control bit by exact name to find them.
+- Names can differ by one spelling (DISTILATE vs DISTILLATE, DSTLT). If a bit is only ever read, search for a similarly named tag that is written.
+- Rung comments in the ladder text (for example "distillate will be sent to drain if...") state the designer's intent. Quote them as such.`
 
 const ANSWER_GUIDE = `Answer rules for Logix Advisor:
 - Use the file evidence below. Name the exact tag, program/routine, rung number and the file page.
-- Only state what a tag does or feeds if you saw that rung in the evidence. If the rung was not read, say it was not verified. Do not guess from a tag's name or from its timer pattern alone.
+- PAGE NUMBERS: cite only the page printed in the evidence header "(page N)" where the rung actually appears. Never estimate a page or write a range such as "p.145-146". A rung that continues on the next page is cited as its starting page.
+- RUNG CONDITIONS: when you describe a rung, name EVERY contact and instruction in it with its exact tag name, in order, including master control bits (MCB) and enable bits. Never summarise as "some temperature bits".
+- TRACE BOTH WAYS. For each key tag, show what sets/writes it (the "*" entries) AND everything that uses it. For a control bit, follow it all the way to what it physically does: the discrete output (Local:N:O.Data.n), solenoid/valve, motor, horn or lamp, the produced/OIT/DCS tag, and any timer or alarm that depends on it. A timer's .DN/.TT bit also has readers on other rungs; follow those for side effects such as follow-on timers and alarms.
+- NEVER write "not verified" for something whose rung is listed in a cross-reference. If the evidence does not contain that rung, say exactly which routine and rung to open; the Advisor is expected to have read it already.
+- A tag that appears under "Tags no rung writes" is never written by program logic. Say that explicitly and give the likely reason (hardware input, written from the HMI/DCS, unused, or a differently spelled twin of another tag such as DISTILATE_ vs DSTLT_). Do not describe how such a tag is "driven".
+- The extracted ladder text loses branch layout (series vs parallel contacts). If you cannot tell how contacts are arranged, say so instead of claiming a seal-in, an OR or an AND.
+- Only state what a tag does or feeds if you saw that rung in the evidence. Do not guess from a tag's name or from its timer pattern alone.
 - Check the neighbouring rungs: a comm-loss alarm and its timer/counter/compare logic usually sit in the rungs right before the latch.
 - If nothing is literally named what the user asked for, say so, then give the best candidate you found and why. Say clearly that it is inferred.
+- Separate what you SAW (cite it) from what you INFER (label it "inferred"). Report current values only as a snapshot from the report.
 - Do not answer with a generic Studio 5000 how-to when evidence is provided. Only suggest next steps for what the files cannot show (for example binary .ACD files, or logic on the other side of a network link).`
 
 interface Plan {
@@ -47,17 +60,50 @@ interface Plan {
   done?: unknown
 }
 
-/** Routine/rung pairs where a searched tag is written, so the logic around them can be read. */
-function writeRungs(hits: Match[]): { routine: string; rung: number; file: string }[] {
-  const out: { routine: string; rung: number; file: string }[] = []
+interface XrefRef {
+  tag: string
+  routine: string
+  rung: number
+  write: boolean
+  file: string
+}
+
+/** Every cross-reference entry (tag, routine, rung, write or read) found in the search hits. */
+function xrefs(hits: Match[]): XrefRef[] {
+  const out: XrefRef[] = []
   for (const hit of hits) {
     for (const m of hit.text.matchAll(XREF)) {
-      for (const w of m[3].matchAll(/\*(\d+)\(/g)) {
-        out.push({ routine: m[2], rung: Number(w[1]), file: hit.path })
+      for (const r of m[3].matchAll(/(\*?)(\d+)\(/g)) {
+        out.push({ tag: m[1], routine: m[2], rung: Number(r[2]), write: r[1] === '*', file: hit.path })
       }
     }
   }
   return out
+}
+
+/**
+ * The rungs worth reading for the matched tags: every write, plus every reader of a tag that has
+ * only a few references (that is where a control bit reaches its output, valve, alarm or DCS tag).
+ */
+function rungsToRead(refs: XrefRef[]): XrefRef[] {
+  const byTag = new Map<string, XrefRef[]>()
+  for (const r of refs) byTag.set(r.tag, [...(byTag.get(r.tag) ?? []), r])
+  const writes = refs.filter((r) => r.write)
+  const readers = refs.filter((r) => !r.write && (byTag.get(r.tag)?.length ?? 0) <= SMALL_TAG_REFS)
+  return [...writes, ...readers]
+}
+
+/** Tags that have references but no rung writes them, which the answer must say plainly. */
+function unwrittenNotes(refs: XrefRef[]): string {
+  const byTag = new Map<string, XrefRef[]>()
+  for (const r of refs) byTag.set(r.tag, [...(byTag.get(r.tag) ?? []), r])
+  const notes = [...byTag.entries()]
+    .filter(([tag, list]) => !/\.(DN|TT|EN|ACC|PRE|EU|ER|CU|CD|OV|UN)$/i.test(tag) && !list.some((r) => r.write))
+    .slice(0, 8)
+    .map(([tag, list]) => `- ${tag}: ${list.length} reference(s), none of them writes it`)
+  return notes.length
+    ? `### Tags no rung writes\n${notes.join('\n')}\n(An input, an HMI/DCS/external write, or an unused or misspelled twin of another tag. Say which is likely, and look for a similarly named tag.)\n\n`
+    : ''
 }
 
 function parsePlan(reply: string): Plan | null {
@@ -102,7 +148,7 @@ Reply with ONLY a JSON object, no prose:
 {"searches":[{"pattern":"case-insensitive regex","file":"optional substring of a file path"}],"read":[{"file":"substring of a file path","page":12},{"routine":"_080_Alarms_Warnings","rung":34,"file":"optional"}],"done":false}
 - Up to 8 searches. Use several alternative spellings/synonyms in one regex with |.
 - "read" with routine+rung returns the ladder page holding that rung (and the next page). "read" with file+page returns a whole page. Use these once a search shows where something is.
-- Searches already read the "*" (write) rungs automatically. Also read the rungs just before and after any latch/alarm/candidate (n-3 .. n+1) and where a candidate bit is used (XIC entries) so you know what it actually drives.
+- Searches already read the rungs that write the matched tags, and the readers of tags with few references. Also read the rungs just before and after any latch/alarm/candidate (n-3 .. n+1). For anything physical (valve, motor, horn), search the control bit by its exact name and read the OUTPUT routine rung.
 - Scope searches with "file" when the question names a program or folder (e.g. "3CSG").
 - Set "done": true only after you have read the rungs behind your best candidate.`
 }
@@ -179,9 +225,11 @@ export async function researchFiles(opts: {
         added += m ? `### Read\n${describeMatch(m)}\n\n` : `### Read ${file} ${page}: not found\n\n`
       }
 
-      // A cross-reference only says where a tag is written. Read those rungs so the logic around them is seen.
+      // A cross-reference only says where a tag is used. Read those rungs so the logic around them is seen.
+      const refs = xrefs(hitsThisRound)
+      added += unwrittenNotes(refs)
       let auto = 0
-      for (const w of writeRungs(hitsThisRound)) {
+      for (const w of rungsToRead(refs)) {
         if (auto >= MAX_AUTO_RUNGS) break
         const before = readKeys.size
         onStatus(`Reading ${w.routine} rung ${w.rung}…`)

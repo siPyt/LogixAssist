@@ -19,6 +19,7 @@ const TEST_RESULT: Record<BridgeState['kind'], string> = {
   'needs-token': 'Bridge found, but no pairing token is saved yet.',
   'bad-token': 'Bridge found, but it rejected this pairing token.',
   outdated: 'Bridge is an old version. Reload the VS Code window to load the new one.',
+  'no-model': 'Bridge connected, but Claude Sonnet 5.5 is not available in VS Code. Enable it in the GitHub Copilot model picker. No other model is used.',
   ready: 'Connected.',
 }
 
@@ -70,7 +71,7 @@ export function SettingsPanel() {
       <label className="settings-field">
         <span>Connect through</span>
         <select value={backend} onChange={(e) => setBackend(e.target.value as AiBackend)}>
-          <option value="vscode">VS Code — Claude Sonnet from my Copilot subscription</option>
+          <option value="vscode">VS Code — Claude Sonnet 5.5 from my Copilot subscription</option>
           <option value="cloud">Anthropic API (needs an API key on the server)</option>
         </select>
       </label>

@@ -1,6 +1,6 @@
 # Logix Assistant Bridge (VS Code extension)
 
-Lets the Logix Assistant app use the **Claude Sonnet model from your VS Code / GitHub Copilot subscription** —
+Lets the Logix Assistant app use **Claude Sonnet 5.5 from your VS Code / GitHub Copilot subscription** —
 no separate API key. It runs a small server on `127.0.0.1:47821` inside VS Code and calls the model through VS Code's
 Language Model API.
 
@@ -9,7 +9,7 @@ Language Model API.
 ```bash
 npm install
 npm run package
-code --install-extension logix-assistant-bridge-0.3.1.vsix
+code --install-extension logix-assistant-bridge-0.4.0.vsix
 ```
 
 The app pairs itself automatically when it finds the bridge (the bridge only hands its token to the allowed origins
@@ -28,8 +28,8 @@ below). The first chat message makes VS Code ask whether the extension may use y
 
 ## Settings
 
-- `logixAssistant.model` — preferred model (default `claude-sonnet-5.5`). Falls back to the newest Claude Sonnet,
-  then any available model. The app shows which model answered.
+- Always uses **Claude Sonnet 5.5** and nothing else. If it isn't available in your Copilot model picker, the app
+  says so instead of falling back to another model. There is no model setting.
 - `logixAssistant.port` — default `47821`.
 - `logixAssistant.appUrl` — URL opened by auto-pair (set to your Vercel URL for the deployed app).
 - `logixAssistant.allowedOrigins` — extra web origins allowed to call the bridge (e.g. your Vercel URL). Local

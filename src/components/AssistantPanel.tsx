@@ -32,6 +32,7 @@ const STATUS_TEXT: Record<BridgeState['kind'], string> = {
   'needs-token': 'Pairing needed',
   'bad-token': 'Pairing token rejected',
   outdated: 'VS Code bridge needs a reload',
+  'no-model': 'Claude Sonnet 5.5 not available in VS Code',
   ready: 'Connected',
 }
 
@@ -183,6 +184,10 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
       setError('VS Code is running an old bridge. Reload the VS Code window (Ctrl+Shift+P → Developer: Reload Window), then ask again.')
       return
     }
+    if (backend === 'vscode' && bridge.kind === 'no-model') {
+      setError('Claude Sonnet 5.5 is not available in VS Code, so Logix Advisor is not available. Enable it in the GitHub Copilot model picker, then ask again.')
+      return
+    }
     setError(null)
     const history: ChatMessage[] = [...messages, { role: 'user', content: text }]
     setMessages(history)
@@ -262,6 +267,13 @@ export function AssistantPanel({ onOpenSettings, tree, openPath }: AssistantPane
               VS Code is still running an old copy of the bridge, which can't pass your files to
               Logix Advisor. In VS Code press <strong>Ctrl+Shift+P</strong> and run{' '}
               <strong>Developer: Reload Window</strong>. This turns green on its own.
+            </p>
+          )}
+          {bridge.kind === 'no-model' && (
+            <p>
+              Logix Advisor only uses <strong>Claude Sonnet 5.5</strong>, and VS Code doesn't offer
+              it right now, so the Advisor is not available. Sign in to GitHub Copilot and enable
+              Claude Sonnet 5.5 in the Copilot model picker. This turns green on its own.
             </p>
           )}
           {(bridge.kind === 'needs-token' || bridge.kind === 'bad-token') && (

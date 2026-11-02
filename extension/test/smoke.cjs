@@ -14,7 +14,7 @@ const provider = {
     const m = { id: 'x', name: 'Claude Sonnet 5.5', family: 'claude-sonnet-5.5', vendor: 'copilot' }
     return { models: [m], selected: m }
   },
-  async chat(messages, { signal, modelId, context }, onDelta) {
+  async chat(messages, { signal, context }, onDelta) {
     seenContext = context
     if (messages[0].content === 'fail') throw new Error('boom')
     if (messages[0].content === 'slow') {
@@ -28,7 +28,7 @@ const provider = {
     }
     onDelta('Hel')
     onDelta('lo ' + messages[messages.length - 1].content)
-    return { model: modelId ?? 'Claude Sonnet 5.5' }
+    return { model: 'Claude Sonnet 5.5' }
   },
 }
 

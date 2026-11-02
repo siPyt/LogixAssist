@@ -2,7 +2,7 @@
   "name": "logix-assistant-bridge",
   "displayName": "Logix Assistant Bridge",
   "description": "Lets the Logix Assistant app use the Claude Sonnet model from your VS Code (GitHub Copilot) subscription. Runs a local-only, token-protected bridge.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "logixassist",
   "author": "Charles R. Freeman",
   "license": "UNLICENSED",
@@ -28,11 +28,6 @@
           "type": "number",
           "default": 47821,
           "description": "Local port for the bridge (127.0.0.1 only)."
-        },
-        "logixAssistant.model": {
-          "type": "string",
-          "default": "claude-sonnet-5.5",
-          "description": "Preferred model family or name. Falls back to the newest Claude Sonnet, then any available model."
         },
         "logixAssistant.appUrl": {
           "type": "string",
