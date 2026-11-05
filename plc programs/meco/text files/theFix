@@ -1,0 +1,76 @@
+What could be happening
+Conductivity rises or the excess-drain alarm activates.
+DeltaV marks the still unavailable or moves into an interruption/recovery step.
+The condition recovers and you clear the PLC alarm through the HMI.
+DeltaV’s internal unavailable flag, hold condition, or waiting step does not reset.
+Restarting the chart initializes that state or reissues a command, allowing operation again.
+That would explain why the PLC looks healthy while DeltaV still refuses to proceed.
+
+One important distinction: if a transition simply checks “alarm is clear,” an earlier alarm clearance should still satisfy it when evaluated. A missed event is more plausible if the chart requires a new change/pulse, retains a failure flag, or never reaches the recovery logic.
+
+What to capture while it is stuck
+Check	What it establishes
+DELTA_V_READ[3].3 = 1	Current conductivity acceptable
+DELTA_V_READ[3].12 = 1	Excess-drain alarm cleared
+DELTA_V_READ[0].7	Whether the PLC is commanding distillate to storage—not proof of actual flow
+DELTA_V_WRITE[0].1	Whether DeltaV is requesting the still to run
+Compare these at the PLC and in DeltaV, including DeltaV data quality. Then capture:
+
+The chart’s active step and execution state.
+The transition preventing advancement, including each condition’s value.
+The exact logic producing “Still Available.”
+I found no “Still Available” signal by that name in the PLC report, so we need its DeltaV definition.
+
+The key is identifying which condition stays false before the chart is restarted. That distinguishes a retained DeltaV state from a real remaining permissive, stale data, or a missing run request—without bypassing anything.
+
+
+
+
+
+Yes—that helps significantly. Starting the chart from the top is a confirmed recovery method, not a theory. What remains unproven is why it restores operation.
+
+That shifts the investigation toward what the beginning of the chart does that the normal recovery path does not, such as:
+
+Clearing a retained “unavailable” or failure flag.
+Recalculating availability.
+Reissuing a run request or completing a handshake.
+Resetting a timer or sequence state.
+Your explanation becomes: the PLC condition recovers, but the sequence cannot resume without repeating an initialization action. That fits your observations, although we still need the chart to identify that action.
+
+The most useful evidence now is:
+
+The step where the chart remains stuck.
+The actions performed at the top of the chart.
+The exact point during the existing restart procedure when “Still Available” becomes true.
+That comparison should tell us whether the missing recovery action belongs in DeltaV—or whether restarting reissues a command or waits for a PLC condition that was still missing.
+
+
+
+
+
+
+
+
+
+Yes—that remains a valid working explanation and a useful capture list. The distinction is:
+
+Confirmed: starting the chart from the top restores operation.
+Not yet confirmed: exactly which state, command, or condition that restart changes.
+Three clarifications:
+
+DELTA_V_READ[3].3 reports current conductivity, not the retained AAH_200_AUX alarm. It becomes 1 when conductivity is acceptable. [3].12 reports the separate retained excess-drain alarm. Your table correctly distinguishes them.
+
+The transition explanation still holds. If the chart evaluates “alarm clear,” an earlier clearance should satisfy that particular condition. Other conditions in the transition—or the chart being held—could still prevent advancement.
+
+Restarting successfully does not, by itself, prove the fault is entirely inside DeltaV. The restart might reset chart state, reissue a command, or allow a remaining PLC condition to become satisfied.
+
+For the pictures
+Keep your four-tag checklist and capture:
+
+The active step and chart execution state while stuck.
+The blocking transition, with its expression and live values.
+The actions at the beginning of the chart.
+The logic that produces “Still Available.”
+One useful additional signal is DELTA_V_READ[0].0, which mirrors the PLC’s master-control bit, MCB. Recording it helps show whether chart restart also drops and restores the PLC run state. Neither an unchanged nor a changing MCB alone identifies the root cause.
+
+The goal remains to identify what changes between the stuck condition and successful recovery, then relate that change to the blocking transition.
