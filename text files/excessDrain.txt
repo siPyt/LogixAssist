@@ -1,3 +1,9 @@
+
+
+
+
+
+
 **Conductivity**
 - `AT_200_EU`
 - `AAH_200_SP`
@@ -99,3 +105,12 @@ DELTA_V_READ[3].12: separate excess-drain alarm—1 cleared, 0 active/retained.
 Both can be 1 while AAH_200_AUX = 0, meaning the conductivity alarm is still retained after conductivity recovered.
 
 For that situation, check AAH_200_AUX, AAH_200_ACK, AAH_200_DELAY.DN, and RESET directly.
+
+
+**************************************************************************************************************************
+
+AAH_200_AUX = 0: alarm active/retained.
+Conductivity recovering alone does not clear it.
+Acknowledge + HMI reset clears it once AAH_200_DELAY.DN = 0.
+While the conductivity fault persists, reset cannot clear it.
+Exception: ALARMS rungs 28–30 also contain an automatic acknowledgment/reset path using DISTILATE_TO_STORAGE. That is a different tag from DSTLT_STORAGE, so don’t assume actual return to storage activates that path.
