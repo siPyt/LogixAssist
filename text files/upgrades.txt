@@ -1,0 +1,240 @@
+MECO9497 - DeltaV COMMUNICATION MONITORING UPGRADES
+Source: plc programs\meco\Logix Designer Report(s).pdf  (MECO9497.ACD report, 10/15/2026)
+Status: PROPOSED - not implemented. Verify against the live program and go through
+change control before making any edits.
+
+
+**************************************************************************
+1. HOW IT WORKS TODAY
+**************************************************************************
+
+Direction (tags are named from DeltaV's point of view):
+- DELTA_V_WRITE = DeltaV -> PLC   (DeltaV writes, PLC reads)
+- DELTA_V_READ  = PLC -> DeltaV   (PLC writes, DeltaV reads)
+
+DeltaV -> PLC bits actually used:
+- DELTA_V_WRITE[0].0  DeltaV heartbeat
+- DELTA_V_WRITE[0].1  DeltaV remote run request -> D_V_REMOTE_START_MAP (DELTA_V rung 9)
+- DELTA_V_WRITE[1]..[9]  not used
+
+Existing heartbeat watchdog (MainProgram > DELTA_V):
+- Rung 0: XIC DELTA_V_WRITE[0].0          -> OTE HEARTBEAT
+- Rung 1: XIC HEARTBEAT                   -> TON TIMER_BIT (1 s)
+- Rung 2: XIC TIMER_BIT.DN                -> TON TIMER_OUT (5 s), TON LOSS_COM_DISPLAY (10 s)
+- Rung 3: XIC TIMER_OUT.DN                -> OTE DELTA_V_READ[0].5   (heartbeat high ~6 s)
+- Rung 4: XIC LOSS_COM_DISPLAY.DN         -> OTE HEARTBEAT_AUX       (heartbeat high ~11 s)
+
+Where HEARTBEAT_AUX is used (1 = comm loss):
+- MSS_CONTROL rung 0: XIO HEARTBEAT_AUX is in series with BOTH the Manual and the Auto
+  run paths. Comm loss drops MCB in Manual AND Auto.
+- OIT rung 21: blocks the alarm screen (14) from being forced.
+- OIT rung 25: MOV 99 -> OIT_SCREEN_CONTROL (forces OIT screen 99).
+- OIT rung 26: returns OIT_SCREEN_CONTROL to 0 when no comm loss and no alarm.
+
+
+**************************************************************************
+2. PROBLEMS FOUND
+**************************************************************************
+
+P1. Heartbeat stuck LOW is not detected.
+    The timers only run while the heartbeat is 1. If comm is lost while
+    DELTA_V_WRITE[0].0 = 0, the timers stay reset:
+    DELTA_V_READ[0].5 = 0, HEARTBEAT_AUX = 0  -> no alarm, no interlock.
+
+P2. Stale DeltaV remote run command.
+    DELTA_V_WRITE values hold their last value when comm stops; nothing in the PLC
+    clears them. If comm is lost with DELTA_V_WRITE[0].1 = 1 and the heartbeat at 0,
+    the unit keeps running on a stale run request, DeltaV can't stop it, and nobody
+    is alerted.
+
+P3. No PLC -> DeltaV heartbeat.
+    DELTA_V_READ[0].5 is a timeout flag, not a heartbeat. If comm fails, DeltaV keeps
+    the last value it received (0 = looks healthy). DeltaV can't detect stale PLC data
+    from anything in this program.
+
+P4. Comm loss is not a real alarm in the PLC.
+    It is not in AUDIBLE_SUMMARY (ALARMS rung 40), has no AUX/ACK/MSG bits, no horn,
+    no latch. The only indication is OIT screen 99 while it is active.
+
+P5. Misleading tag descriptions.
+    DELTA_V_WRITE says "PLC Write to Delta V" (backwards). TIMER_OUT
+    "Communications Lost Timer" and HEARTBEAT_AUX "Auxillary Bit for the Heartbeat DCS"
+    don't say they only detect a heartbeat stuck high.
+
+P6. No other comm diagnostics.
+    No DeltaV module in the I/O configuration and no GSV/connection-status logic were
+    found. The heartbeat is the only PLC-side check.
+
+
+**************************************************************************
+3. DECISIONS NEEDED BEFORE CHANGING ANYTHING
+**************************************************************************
+
+D1. Should DeltaV comm loss block MANUAL operation?
+    Today HEARTBEAT_AUX drops MCB in Manual and Auto. Today, if DeltaV is offline with
+    the heartbeat sitting at 0, Manual still works (P1). After upgrade U1, a DeltaV
+    outage would ALSO stop / block the unit in Manual.
+    Options:
+      (a) Keep it - any DeltaV comm loss stops the unit in all modes.
+      (b) Move the comm-loss interlock so it only removes the DeltaV run request
+          (gate D_V_REMOTE_START_MAP with XIO HEARTBEAT_AUX), and take XIO HEARTBEAT_AUX
+          out of the common path in MSS_CONTROL rung 0. Manual and hardwired remote
+          start keep working when DeltaV is down.
+
+D2. What should happen when comm comes back?
+    The Auto path in MSS_CONTROL rung 0 is not a seal-in. If comm returns while the
+    DeltaV run request is still 1 and MSS_START_PERM is true, MCB re-energizes and the
+    unit restarts on its own. Decide if that is acceptable or if a restart should
+    require a new run command / reset.
+
+D3. What writes D_V_REMOTE_START?
+    No PLC logic writes it (only XIC in DELTA_V rung 9 and INPUT_MAP rung 35). If
+    DeltaV or another device writes it directly, it has the same stale-command risk and
+    needs the same comm-loss gating.
+
+
+**************************************************************************
+4. UPGRADES
+**************************************************************************
+
+U1. Detect heartbeat stuck LOW  (PRIORITY: HIGH - fixes P1 and P2)
+--------------------------------------------------------------------------
+Minimal change - keeps the existing logic and adds the missing case.
+
+New tags:
+  DV_HB_LOW_OUT   TIMER   "DeltaV heartbeat stuck low - DeltaV indication"
+  DV_HB_LOW_LOSS  TIMER   "DeltaV heartbeat stuck low - comm loss"
+
+New rung in DELTA_V (after existing rung 2):
+  XIO HEARTBEAT -> TON DV_HB_LOW_OUT  (PRE 6000)
+                -> TON DV_HB_LOW_LOSS (PRE 11000)
+
+Change existing rung 3:
+  [XIC TIMER_OUT.DN  OR  XIC DV_HB_LOW_OUT.DN]          -> OTE DELTA_V_READ[0].5
+
+Change existing rung 4:
+  [XIC LOSS_COM_DISPLAY.DN  OR  XIC DV_HB_LOW_LOSS.DN]  -> OTE HEARTBEAT_AUX
+
+Presets: 6 s / 11 s match the existing stuck-high timing. They must be longer than
+the longest time DeltaV normally holds the heartbeat at 0, plus comm delay. Confirm
+DeltaV's heartbeat period first.
+
+Result: because HEARTBEAT_AUX is reused, stuck low automatically gets OIT screen 99,
+the MCB interlock (per D1), and the alarm-screen block. DELTA_V_READ[0].5 also tells
+DeltaV that the PLC isn't receiving its writes (useful when only one direction fails).
+
+Alternative (cleaner) - change-of-state watchdog that replaces TIMER_BIT /
+TIMER_OUT / LOSS_COM_DISPLAY and times out if the heartbeat stops CHANGING at any level:
+  R1: [XIC HEARTBEAT XIO DV_HB_LAST] OR [XIO HEARTBEAT XIC DV_HB_LAST] -> OTE DV_HB_CHANGED
+  R2: XIO DV_HB_CHANGED -> TON DV_HB_WD_OUT (6000), TON DV_HB_WD_LOSS (11000)
+  R3: XIC HEARTBEAT -> OTE DV_HB_LAST            (must come AFTER R1)
+  R4: XIC DV_HB_WD_OUT.DN  -> OTE DELTA_V_READ[0].5
+  R5: XIC DV_HB_WD_LOSS.DN -> OTE HEARTBEAT_AUX
+
+
+U2. Add a PLC -> DeltaV heartbeat  (PRIORITY: HIGH - fixes P3)
+--------------------------------------------------------------------------
+Use DELTA_V_READ[1] (INT, not used anywhere in the program) as a counter.
+Confirm DeltaV actually reads word [1] first.
+
+New tag:
+  PLC_HB_TMR   TIMER   "PLC heartbeat pulse timer"
+
+New rungs (DELTA_V):
+  XIO PLC_HB_TMR.DN -> TON PLC_HB_TMR (PRE 1000)
+  XIC PLC_HB_TMR.DN -> CPT  Dest DELTA_V_READ[1]
+                            Expression (DELTA_V_READ[1] + 1) MOD 10000
+
+Counts 0..9999 once per second, then wraps (MOD prevents INT overflow).
+A counter is better than a toggle bit - DeltaV's polling can miss a 0/1 toggle.
+Stops changing if the PLC is in Program mode, faulted, or off -> DeltaV will alarm.
+
+DeltaV side (DeltaV engineer):
+  - Alarm if DELTA_V_READ[1] doesn't change for longer than N s (several DeltaV poll
+    periods, e.g. 5-10 s).
+  - Also alarm on the DeltaV driver/device bad status / bad data quality.
+  - On that alarm, treat all MECO data as stale.
+
+
+U3. Make comm loss a real PLC alarm  (OPTIONAL - fixes P4)
+--------------------------------------------------------------------------
+Follow the existing alarm pattern (1 = healthy, latched, ACK + RESET to clear),
+same as EXCESS_DIST_TO_DRAIN_AUX / _ACK (ALARMS rungs 34-35).
+
+New tags: DV_COMM_AUX, DV_COMM_ACK, MSG_DV_COMM  (BOOL)
+
+ALARMS - new rungs:
+  [XIC DV_COMM_AUX  OR  (XIC DV_COMM_ACK XIC RESET)]  XIO HEARTBEAT_AUX  -> OTE DV_COMM_AUX
+  XIO DV_COMM_AUX  [XIC DV_COMM_ACK  OR  XIC ACKNOWLEDGE]                -> OTE DV_COMM_ACK
+
+ALARMS rung 40 (horn): add a branch  XIO DV_COMM_AUX  XIO DV_COMM_ACK  like the others.
+
+OIT - new rung (same as OIT rungs 0-13):
+  XIO DV_COMM_AUX -> OTE MSG_DV_COMM
+  Add an HMI alarm on MSG_DV_COMM ("Loss of communication with DeltaV").
+
+Keep HEARTBEAT_AUX (not latched) for the interlock; DV_COMM_AUX is for alarming only.
+Decide whether the screen 99 behavior (OIT rungs 21, 25, 26) stays.
+
+
+U4. Round-trip echo  (OPTIONAL)
+--------------------------------------------------------------------------
+Proves both directions end to end.
+  - DeltaV writes a changing counter to DELTA_V_WRITE[1] (unused).
+  - PLC: MOV DELTA_V_WRITE[1] -> DELTA_V_READ[4] (unused).
+  - DeltaV alarms if the echo doesn't match what it sent within N s.
+U1 + U2 already cover each direction separately, so this is extra.
+
+
+U5. Fix tag descriptions  (fixes P5)
+--------------------------------------------------------------------------
+  DELTA_V_WRITE        "DeltaV -> PLC (written by DeltaV, read by PLC)"
+  DELTA_V_WRITE[0].0   "DeltaV heartbeat to PLC"
+  DELTA_V_WRITE[0].1   "DeltaV remote run request"
+  DELTA_V_READ         "PLC -> DeltaV (written by PLC, read by DeltaV)"
+  DELTA_V_READ[0].5    "PLC lost DeltaV heartbeat (1 = loss)"
+  DELTA_V_READ[1]      "PLC heartbeat counter to DeltaV"            (with U2)
+  HEARTBEAT            "DeltaV heartbeat (copy of DELTA_V_WRITE[0].0)"
+  TIMER_BIT            "DeltaV heartbeat stuck-high timer 1"
+  TIMER_OUT            "DeltaV heartbeat stuck-high timer - DeltaV indication"
+  LOSS_COM_DISPLAY     "DeltaV heartbeat stuck-high timer - comm loss"
+  HEARTBEAT_AUX        "DeltaV comm loss (1 = loss) - MCB interlock, OIT screen 99"
+  Also update the DELTA_V rung 0 comment.
+
+
+**************************************************************************
+5. CONFIRM BEFORE CHANGING
+**************************************************************************
+- DeltaV heartbeat: does it toggle 0/1, what period, and does it really write 0?
+- Which DELTA_V_READ / DELTA_V_WRITE words DeltaV maps (need READ[1]; READ[4] and
+  WRITE[1] for U4).
+- How DeltaV connects to the PLC and whether it already alarms on bad device status.
+  The tag listing shows producer settings ("Maximum Consumers") on DELTA_V_READ,
+  DELTA_V_WRITE and DELTA_V_FP, but no DeltaV module is in the I/O configuration.
+- OIT screen 99 is the comm loss screen (check the HMI application, MECO9497.mer).
+- What writes D_V_REMOTE_START (D3).
+- Decisions D1 and D2 with operations / process owner.
+- The report is a snapshot - verify rung numbers and tags in the live ACD.
+
+
+**************************************************************************
+6. TEST PLAN
+**************************************************************************
+(Regular controller tags can't be forced in Logix - test by having DeltaV hold the
+heartbeat, or by stopping comms.)
+
+T1  Normal: DeltaV toggling - no false alarms over an extended run (e.g. 24 h). Check
+    timer .ACC values never get close to their presets.
+T2  Stuck HIGH: DeltaV holds DELTA_V_WRITE[0].0 = 1
+    -> DELTA_V_READ[0].5 = 1 at ~6 s, HEARTBEAT_AUX = 1 at ~11 s, OIT screen 99,
+       MCB drops per D1.
+T3  Stuck LOW: DeltaV holds DELTA_V_WRITE[0].0 = 0 -> same results as T2.
+T4  Cable pull / stop DeltaV comms - once with heartbeat at 1, once at 0.
+T5  Stale run command: comm lost while DELTA_V_WRITE[0].1 = 1 -> unit stops per D1.
+T6  Recovery: comm restored -> bits clear; verify restart behavior matches D2.
+T7  Manual mode with DeltaV offline -> behaves per D1.
+T8  PLC heartbeat: DeltaV sees DELTA_V_READ[1] counting; put PLC in Program mode
+    -> DeltaV alarms within N s.
+T9  PLC power cycle: confirm startup behavior and that INITIAL_SCAN_SYS_RESET
+    (30 s) doesn't cause nuisance comm alarms.
+T10 (U3) Comm alarm: horn sounds, ACK silences, RESET clears only after comm returns.
