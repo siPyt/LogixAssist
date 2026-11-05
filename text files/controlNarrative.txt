@@ -1,0 +1,20 @@
+MECO9497 DELTAV COMMUNICATIONS
+
+DeltaV sends a heartbeat bit to the PLC at DELTA_V_WRITE[0].0. The PLC copies
+this bit to HEARTBEAT.
+
+When HEARTBEAT is on continuously for one second, TIMER_BIT completes and
+starts two timers. TIMER_OUT completes after five more seconds. When it
+completes, the PLC turns on DELTA_V_READ[0].5. LOSS_COM_DISPLAY completes after
+ten more seconds and turns on HEARTBEAT_AUX.
+
+HEARTBEAT_AUX is used in the master-control logic. When it turns on, it
+interrupts the master-control run path in both Manual and Auto. The
+operator-interface logic also sets OIT_SCREEN_CONTROL to 99.
+
+When HEARTBEAT turns off, the timers reset and the timeout indications turn
+off.
+
+This logic detects the heartbeat remaining on too long. It does not detect a
+heartbeat that remains off, and DELTA_V_READ[0].5 is a timeout indication from
+the PLC, not a changing PLC heartbeat.
