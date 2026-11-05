@@ -1,0 +1,101 @@
+**Conductivity**
+- `AT_200_EU`
+- `AAH_200_SP`
+- `AAH_200`
+- `AAH_200_DELAY`
+- `AAH_200_AUX`
+- `AAH_200_ACK`
+- `RESET_CONDUCTIVITY_HIGH_OIT`
+
+**Storage / drain control**
+- `MCB`
+- `DSTLT_STORAGE_ENABLE_OIT`
+- `DSTLT_STORAGE_ENABLE_MAP`
+- `DSTLT_STORAGE`
+- `DSTLT_STORAGE_DELAY_TIMER`
+- `DIST_COND_ALRM_STARTUP_TMR`
+- `TAL_200`
+- `TAL_200_DELAY`
+- `DSTLT_TEMP_ALRM_SU_DELAY`
+- `SV_200_201_DO`
+
+**Excess-drain alarm**
+- `EXCESS_DSTLT_DRAIN_TIMER`
+- `EXCESS_DSTLT_DRAIN`
+- `EXCESS_DSTLT_DELAY_TIMER`
+- `EXCESS_DIST_TO_DRAIN_AUX`
+- `EXCESS_DIST_TO_DRAIN_ACK`
+- `MSG_EXCESS_DIST_TO_DRAIN`
+
+**HMI acknowledge / reset**
+- `ALARM_ACK_OIT`
+- `ACKNOWLEDGE`
+- `ALARM_RESET_OIT`
+- `RESET`
+
+**Separate, similarly named tag used in the alarm routine**
+- `DISTILATE_TO_STORAGE`
+
+
+**************************************************************************
+
+
+
+| Tag | What to check |
+|---|---|
+| `EXCESS_DIST_TO_DRAIN_AUX` | Retained alarm state: **0 = alarm, 1 = cleared** |
+| `EXCESS_DIST_TO_DRAIN_ACK` | Goes **1** when the alarm is acknowledged |
+| `EXCESS_DSTLT_DELAY_TIMER.DN` | Must be **0** before the alarm can reset |
+| `ALARM_ACK_OIT` | HMI acknowledge-button signal |
+| `ACKNOWLEDGE` | PLC’s mapped acknowledge signal |
+| `ALARM_RESET_OIT` | HMI reset-button signal |
+| `RESET` | PLC’s mapped reset signal |
+
+**Relevant rungs:** `ALARMS` **34–35** and `INPUT_MAP` **36–37**.
+
+**********************************************************************************
+
+
+**Yes—those seven tags directly or indirectly affect `DELTA_V_READ[3].12`.**
+
+In the `report`, `DELTA_V` rung **25**, page **98**, maps:
+
+`EXCESS_DIST_TO_DRAIN_AUX` → `DELTA_V_READ[3].12`
+
+- **0:** excess-drain alarm active or retained.
+- **1:** alarm cleared.
+
+The other six affect it **indirectly**:
+- `ALARM_ACK_OIT` → `ACKNOWLEDGE` → `EXCESS_DIST_TO_DRAIN_ACK`
+- `ALARM_RESET_OIT` → `RESET`
+- `EXCESS_DSTLT_DELAY_TIMER.DN` determines whether reset is allowed.
+
+**Separate conductivity indication:** `AAH_200` maps to `DELTA_V_READ[3].3`—**1 = acceptable conductivity, 0 = above setpoint**. Acknowledging/resetting the excess-drain alarm does **not** clear that conductivity indication.
+
+********************************************************************************************************************************************************************************************************************************************
+DELTA_V_READ[5] = 1: unit reports Hot Standby.
+DELTA_V_READ[3].12 = 1: excess-drain alarm is cleared.
+DELTA_V_READ[3].3 = 1: conductivity is at or below its setpoint.
+
+**************************************************************************************
+Tag	Indication
+DELTA_V_READ[3].0	Emergency stop
+DELTA_V_READ[3].1	High evaporator pressure
+DELTA_V_READ[3].2	Low evaporator pressure
+DELTA_V_READ[3].3	Conductivity acceptable
+DELTA_V_READ[3].4	Low feed level
+DELTA_V_READ[3].5	High feed level
+DELTA_V_READ[3].6	High lube-oil temperature
+DELTA_V_READ[3].7	Low lube-oil pressure
+DELTA_V_READ[3].8	Lube-oil pump motor fault
+DELTA_V_READ[3].9	Compressor motor fault
+DELTA_V_READ[3].10	Compressor surge
+DELTA_V_READ[3].11	Distillate pump motor fault
+DELTA_V_READ[3].12	Excessive distillate to drain
+DELTA_V_READ[3].13	Low distillate temperature
+**********************************************************************************************
+DELTA_V_READ[3].3: current conductivity—1 acceptable, 0 above setpoint.
+DELTA_V_READ[3].12: separate excess-drain alarm—1 cleared, 0 active/retained.
+Both can be 1 while AAH_200_AUX = 0, meaning the conductivity alarm is still retained after conductivity recovered.
+
+For that situation, check AAH_200_AUX, AAH_200_ACK, AAH_200_DELAY.DN, and RESET directly.
