@@ -212,3 +212,12 @@ The feed valve is also forced closed if `LT_100_AI` reads at or below -500 (`LCV
 In the snapshot, `[0]`=2 (Auto), `[2]`=1346 (`HOT_STANDBY` set) and `[3]`=16383 (no alarms) all look good. The only thing holding was the permissive timer at 73.8 of 180 s, with `PT_103_EU` at 1.53.
 
 If yours has sat at 4 longer than 3 minutes, check that `PT_103` stays at or above 0.8. Then check `[3]` for any bit that reads 0, and press Acknowledge then Reset.
+
+**Confirmed on the live system:** the conductivity and excessive drain bits drop to 0 when the alarm is active, and go back to 1 when it's cleared at the HMI.
+
+| Read | Tag | Alarm | Cleared |
+|---|---|---|---|
+| `[3].3` | `AAH_200` | 0 | 1 |
+| `[3].12` | `EXCESS_DIST_TO_DRAIN_AUX` | 0 | 1 |
+
+This matches the "0 means alarm" rule above. It also fits the "Not blockers" note: `[3].12` doesn't stop the start, and `[3].3` isn't in the shutdown group.
