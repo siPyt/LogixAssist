@@ -1,0 +1,511 @@
+DELTAV STUCK-STILL ANALYSIS - FULL VERSION (background notes)
+=====================================================
+GROUND RULES (operator-stated facts - do not drop or reopen these):
+  1. The ONLY condition that causes the problem is the EXCESSIVE DRAIN alarm.
+  2. The ONLY fix is to RESTART THE FILL EM (equipment module) in DeltaV.
+  Any theory or change must be consistent with both. Sections below that talk
+  about the start request, temperature, "restart the chart" or other triggers
+  are older side notes; the short file deltaVStuckAnalysis.txt is the current
+  working document.
+-----------------------------------------------------
+DELTAV "STUCK AFTER EXCESS-DRAIN CLEARED" - ANALYSIS
+=====================================================
+Program: MECO9497 (Logix report dated 10/15/2026) + DeltaV module WFI-LVL-CTRL
+         (UTILITIES/UTIL_WFI/WFI-LVL-CTRL, photos in images\deltaVlogic)
+
+PROBLEM
+-------
+The excess-drain alarm can be acknowledged/reset on the PLC/HMI, the PLC looks
+healthy, but DeltaV does not resume. Starting the DeltaV chart from the top
+restores operation (confirmed recovery method; the reason is NOT yet proven).
+
+NOTE ON THE PHOTOS
+------------------
+All photos were taken with DeltaV in the IDLE state, not the stuck state.
+They show the normal parked state and the structure of the logic. They do not
+show what is blocking while stuck, and no transition expressions are visible.
+
+
+0. LATEST UPDATE - REVISED PROBLEM STATEMENT (supersedes the "start request"
+   focus in sections 3, 5 and 7)
+------------------------------------------------------------------------------
+Operator report: starting the still is NOT the problem (the start bit was
+toggled in the PLC rung to start and stop it during testing, and it works).
+The problem is that after an excessive-drain event the still RUNS but never
+fills storage, and the PLC bit changes when the alarm is cleared. So the
+question is why DeltaV does not move to "fill storage" after the event.
+
+What the PLC does (verified, Logix report):
+  - Two different things decide where distillate goes:
+      a) PLC, at the still: DSTLT_STORAGE (MSS_CONTROL rung 18) drives
+         SV_200_201_DO (Distillate Divert Valve, OUTPUT_MAP rung 4). It is
+         reported to DeltaV as DELTA_V_READ[0].7 (DSTLT_STORAGE) and
+         DELTA_V_READ[2].0 (SV_200_201_IND). Note: IND is the same command
+         bit as the output, not a valve limit-switch feedback.
+      b) DeltaV, at the tank: the WFI inlet/drain valve. The photographed
+         chart actions set it to DIST WASTE (drain) with a "drain back time"
+         and later to DIST STOR / Tank Inlet and set EM_FILL_STATUS to
+         "Nx Filling". (From the photos; the transition conditions between
+         them were not visible.)
+  - EXCESS DRAIN IS A SYMPTOM, NOT THE ROOT CAUSE. The 10-minute excess-drain
+    timer (MSS_CONTROL rung 19) runs while startup timers are done, storage is
+    enabled, and DSTLT_STORAGE_DELAY_TIMER.DN is NOT done. In other words the
+    still was NOT allowed to send to storage for 10 minutes. The reason is
+    upstream: conductivity (AAH_200 / AAH_200_DELAY), low distillate temp
+    (TAL_200 / TAL_200_DELAY), or storage not enabled at the OIT
+    (DSTLT_STORAGE_ENABLE_OIT -> _MAP).
+  - Acknowledging/resetting EXCESS_DIST_TO_DRAIN_AUX does NOT make the PLC send
+    to storage. DSTLT_STORAGE only returns after the cause clears AND the 60 s
+    DSTLT_STORAGE_DELAY_TIMER completes. The retained alarm bits (AAH_200_AUX,
+    TAL_200_AUX, EXCESS_DIST_TO_DRAIN_AUX) are not in the DSTLT_STORAGE rung;
+    only the live AAH_200 / TAL_200 and the timers are.
+  - DELTA_V_READ[3].12 (excess-drain alarm cleared) is only an alarm status
+    bit. It is not the "still available / sending to storage" signal. If that
+    is the bit that changes when the alarm is cleared, it does not by itself
+    prove DeltaV should start filling. The bit that matters for storage is
+    DELTA_V_READ[0].7 (and the divert valve command, READ[2].0).
+  - Excess drain and conductivity alarms are not in MSS_SHUTDOWN or MSS_ALERT,
+    so READ[0].3 / READ[0].4 do not change for them. In the photographed
+    WFI-LVL-CTRL, the still status is the 8-bit FROM_STILL block
+    (Running, Auto, Manual, Critical, Alert, Heartbeat, Off, Available).
+    The excess-drain bit (READ[3].12) is NOT one of those eight, so this
+    module does not appear to see the alarm directly. It sees the effect:
+    "Available" (very likely READ[0].7) staying 0 for a long time, then going
+    to 1 again.
+
+THE DECISIVE SPLIT (capture this when it is running but not filling, after the
+alarm has been cleared):
+  A. DELTA_V_READ[0].7 (DSTLT_STORAGE) and READ[2].0 (divert valve command)
+       = 0 -> the PLC is still not allowing storage. This is a PLC-side
+              condition, not DeltaV. Check DSTLT_STORAGE_DELAY_TIMER (.ACC/.DN),
+              AAH_200_DELAY.DN, TAL_200_DELAY.DN, AAH_200, TAL_200,
+              DSTLT_STORAGE_ENABLE_MAP, DIST_COND_ALRM_STARTUP_TMR.DN,
+              DSTLT_TEMP_ALRM_SU_DELAY.DN, MCB. Also READ[3].3 (conductivity)
+              and READ[3].13 (low distillate temp).
+       = 1 -> the PLC is sending to storage and DeltaV is not following. This
+              is the DeltaV problem. Capture, in DeltaV:
+                - active step of each START_FILL chart and its transition
+                  expressions (T001, T002, T010, T020, T040, T050, T070, T080)
+                  with live values
+                - N1/N3/N1BP_WFI_IN_VLV REQ_SP and PV (DIST WASTE vs DIST STOR)
+                - EM_FILL_STATUS.CV
+                - the "drain back time" timer/flag and the "N1/N3/N1BP Call
+                  for Water is enabled" conditions
+                - FROM_STILL bits, especially STL_STL_AVAIL
+  B. Capture the SAME screens during a NORMAL, healthy fill (and at the same
+     point in the sequence) so the stuck state can be compared against a
+     known-good state. The difference is the answer.
+
+DELTAV-SIDE FIX CANDIDATES (only if the split shows A = 1, DeltaV not
+following). Conditional on what the capture shows; do not apply blindly:
+  1. Make the move to "fill storage" depend on the LEVEL of Available
+     (READ[0].7 / STL_STL_AVAIL) rather than on having seen a one-time event
+     or a timer that was started earlier and never re-armed.
+  2. If Available drops (still sends to drain) while the chart is waiting or
+     filling, make the chart go back to its drain/wait step and re-arm any
+     drain-back timer, then proceed to fill again when Available returns.
+  3. Add a watchdog: still running AND Available = 1 for N minutes AND not
+     filling -> alarm and auto-restart the fill sequence once, so the operator
+     no longer has to restart the chart by hand.
+  4. Reset retained flags/timers on the same trigger that clears the cause
+     (Available rising edge), not only at the top of the chart.
+All of this needs change control, because it is a GMP/WFI system.
+
+SECTIONS 3, 5 AND 7 BELOW were written before this update. Their "lost start
+request" theory is not supported by the operator's report (starting works).
+The write-RMT_STRT_STP test in section 7 is no longer the right test; use the
+split above instead. Their PLC findings (section 2) are still valid.
+
+
+0A. TEST RESULT 11/06/2026 (operator) - CORRECTED
+------------------------------------------------------------------------------
+Test method: conductivity setpoint was lowered below the actual conductivity.
+This caused a REAL high-conductivity alarm, and the PLC then went into a REAL
+excessive-drain alarm on its own (no PLC program changes, nothing forced).
+Every bit that was being watched changed, including DELTA_V_READ[0].7 = 1 when
+the PLC was sending to storage. When all alarms were acknowledged, all bits
+returned to normal and DeltaV was NOT affected (no hang).
+Operator's explanation (unproven): the outcome depends on which chart step was
+active when the alarm occurred.
+
+What this tells us:
+  - The PLC-side sequence (conductivity -> storage delay -> excess drain ->
+    acknowledge/reset -> storage again) is working and DeltaV can follow it, at
+    least from the chart step that was active during this test.
+  - A real excess-drain event by itself does not hang DeltaV. So the field
+    failure needs something more: a different chart step, a different
+    trigger, a different acknowledge order, a different duration, or another
+    event happening at the same time.
+  - This weakens any theory that the excess-drain alarm status alone is the
+    cause. (An earlier note here questioned whether the test was realistic. It
+    was; that concern is withdrawn.)
+
+TESTED SO FAR (11/06/2026): high conductivity only (via lowering the conductivity
+setpoint below actual). NOT tested: low distillate temperature (TAL_200),
+HMI storage enable off, a different acknowledge order, other chart steps, or
+the N3 / N1BP charts (record which one was used). A low-temperature trial could
+follow the same method as the conductivity one (move the low-temp setpoint
+above the actual temperature, if the HMI has one; not checked), with the same
+operations approval and no PLC program changes.
+
+WHAT MAY DIFFER IN THE FIELD (candidates to test or look up):
+  1. Active chart step when the event starts (operator's theory). Note which
+     step each chart (N1, N3, N1BP) was in during the test, then try the other
+     steps and the other charts.
+  2. Trigger type: low distillate temperature (TAL_200, READ[3].13) or the HMI
+     storage enable turned off, instead of high conductivity.
+  3. Acknowledge / reset order. The retained alarms are separate:
+     AAH_200_AUX, TAL_200_AUX and EXCESS_DIST_TO_DRAIN_AUX. For example the
+     excess-drain alarm cleared while the conductivity alarm is still retained,
+     or acknowledge pressed before conductivity has recovered (AAH_200_DELAY.DN
+     must be 0 before AAH_200_AUX can reset).
+  4. Duration: much longer than the test, or an event that repeats.
+  5. Another event at the same time: unit stopped/restarted, Auto/Manual
+     changes, hot standby, comms/heartbeat loss (READ[0].5, HEARTBEAT_AUX), or
+     a still stop/start by the operator.
+  6. A different fill path: the test may have used one of N1 / N3 / N1BP only.
+
+LOWEST-RISK NEXT STEP - LOOK AT HISTORY FROM A REAL HANG (no process impact):
+  - DeltaV Event Chronicle / Process History View (if configured for these
+    modules) for the last time it hung: SFC step changes and parameter changes
+    for WFI-LVL-CTRL, the READ bits, and PLC alarms, with timestamps. This can
+    show which step was active when the event hit and what changed afterward.
+  - Compare with the same screens from today's successful test.
+  - Ask the operator who recovered it what was on screen and what they did
+    (e.g. alarms acknowledged in what order, unit stopped, chart restarted).
+  - Only then decide whether more tests are needed.
+
+NEXT TESTS IF HISTORY IS NOT ENOUGH (needs operations OK and site procedure):
+  1. Record the active step of each START_FILL chart before each trial.
+  2. Cause a real "not allowed to send to storage" period, ideally the cleanest
+     way: turn the HMI storage enable (DSTLT_STORAGE_ENABLE_OIT) OFF so
+     DSTLT_STORAGE drops to 0, hold it long enough that the PLC raises the real
+     excess-drain alarm (EXCESS_DSTLT_DRAIN_TIMER, preset 600000 ms = 10 min,
+     set via SETPOINTS rung 8; not checked whether it is adjustable at the HMI),
+     then turn the enable back ON, acknowledge/reset, and let the 60 s
+     DSTLT_STORAGE_DELAY_TIMER finish.
+  3. Repeat with the event starting at different chart steps:
+       - during the drain / drain-back wait
+       - right at the switch from drain to tank inlet
+       - during filling
+  4. For each trial record: active step, READ[0].7, READ[2].0, valve setpoint
+     (DIST WASTE / DIST STOR), EM_FILL_STATUS, and whether it filled afterward.
+  5. The trial that hangs identifies the vulnerable step. That step's
+     transition/action is where the DeltaV fix goes (re-evaluate on the level
+     of Available instead of acting once).
+  Do not force or bypass anything to run this test. A test that ends stuck is
+  recovered the way you do today (restart the chart from the top).
+
+
+1. WHAT THE PHOTOS SHOW (IDLE)
+------------------------------
+- WFI-LVL-CTRL has four modules: HEARTBEAT, MONITOR, START_FILL, WFI_COMM.
+- The START_FILL / WFI_COMM charts for N1, N3 and N1BP all sit at S000.
+  T000 = True, T001 = False, T002 = False.
+- Step actions are qualified P (Pulse): they run ONCE when the step is
+  entered. Examples:
+    WFI_COMM/RMT_STRT_STP.CV := 1    "Start requesting water from the WFI still"
+    N1/N3/N1BP_WFI_IN_VLV mode -> CAS, inlet/drain valve -> drain or tank inlet
+    N1_WFI_DIST_VLV open/close
+    EM_FILL_STATUS.CV := 'WFI_LVL_FILL:N1/N3/N1BP Filling'
+- Still communication block: DV_HEARTBEAT = True and RMT_STRT_STP = False go
+  TO_STILL. FROM_STILL shows STL_HOA_AUTO = True, everything else False
+  (run status, manual, critical, alert, heartbeat, off, available).
+- MONITOR is Sentinel monitoring (SM_1_16, HM1 "process related failure
+  conditions"). The 7 visible enables are True, bypasses False.
+- Step properties show CONFIRM_..., FAILED_C..., PENDING_... (confirm
+  counters), so confirm expressions exist in this DeltaV version.
+
+
+2. WHAT THE PLC LOGIC SAYS
+--------------------------
+DELTA_V routine (rungs):
+  DELTA_V_READ[0].0 = MCB (unit running)        DELTA_V_READ[0].1 = Auto switch
+  DELTA_V_READ[0].2 = Manual switch             DELTA_V_READ[0].3 = Critical alarm (/MSS_SHUTDOWN)
+  DELTA_V_READ[0].4 = Alert alarm (MSS_ALERT)   DELTA_V_READ[0].5 = Comms timeout (TIMER_OUT.DN)
+  DELTA_V_READ[0].6 = Switch Off                DELTA_V_READ[0].7 = DSTLT_STORAGE
+  DELTA_V_WRITE[0].0 = Heartbeat from DeltaV    DELTA_V_WRITE[0].1 = Remote start (D_V_REMOTE_START)
+  DELTA_V_READ[3].3  = conductivity acceptable (1 = OK)
+  DELTA_V_READ[3].12 = EXCESS_DIST_TO_DRAIN_AUX (0 = alarm/retained, 1 = cleared)
+  DELTA_V_READ[5]    = UNIT_STATUS (1 = Hot Standby)
+
+"STILL AVAILABLE" (inference):
+  FROM_STILL outputs OUT_D1..D8 are labelled Running, Auto, Manual, Critical,
+  Alert, Heartbeat, Off, Available - the same order as DELTA_V_READ[0].0-.7.
+  So STL_STL_AVAIL is very likely DELTA_V_READ[0].7 = DSTLT_STORAGE.
+  (Inferred from ordering. Confirm which wire lands on OUT_D8.)
+
+DSTLT_STORAGE (MSS_CONTROL rung 18) requires ALL of:
+  - MCB on
+  - DSTLT_STORAGE_ENABLE_MAP (enabled at the HMI)
+  - AAH_200 (conductivity OK)
+  - TAL_200 (temperature OK)
+  - DIST_COND_ALRM_STARTUP_TMR.DN and DSTLT_TEMP_ALRM_SU_DELAY.DN
+  - DSTLT_STORAGE_DELAY_TIMER.DN (60 s; rung 17 runs it only while MCB is on
+    and AAH_200_DELAY.DN and TAL_200_DELAY.DN are both off)
+
+Excess-drain alarm (MSS_CONTROL 19-22, ALARMS 34-35):
+  - EXCESS_DSTLT_DRAIN_TIMER (10 min) runs while startup timers are done,
+    storage is enabled, and DSTLT_STORAGE_DELAY_TIMER.DN is NOT done
+    (i.e. distillate is being drained instead of stored).
+  - EXCESS_DSTLT_DELAY_TIMER.DN must be 0 before the alarm can reset.
+  - Reset path: ALARM_ACK_OIT -> ACKNOWLEDGE -> EXCESS_DIST_TO_DRAIN_ACK, and
+    ALARM_RESET_OIT -> RESET. Relevant rungs: ALARMS 34-35, INPUT_MAP 36-37.
+  - EXCESS_DIST_TO_DRAIN_AUX is used only by the horn logic (ALARMS 34, 35, 40),
+    DELTA_V rung 25 (-> READ[3].12) and OIT rung 13. It does NOT feed MCB,
+    MSS_SHUTDOWN or DSTLT_STORAGE.
+
+Consequence:
+  Clearing the excess-drain alarm cannot by itself make the still "available".
+  The 60 s storage delay (and conductivity/temperature) decide that.
+  If READ[3].12 = 1 but READ[0].7 = 0, the PLC is behaving correctly and
+  DeltaV is waiting on something else.
+
+REMOTE START PATH (verified in the Logix report, DELTA_V p.90, INPUT_MAP p.138,
+MSS_CONTROL p.141):
+  - DELTA_V rung 9:  (D_V_REMOTE_START OR DELTA_V_WRITE[0].1) -> D_V_REMOTE_START_MAP
+    D_V_REMOTE_START is only ever READ (no OTE anywhere, value 0). The real
+    DeltaV input is DELTA_V_WRITE[0].1. (Earlier text saying D_V_REMOTE_START
+    "comes from" WRITE[0].1 was imprecise: both feed the MAP bit in parallel.)
+  - MSS_CONTROL rung 0 (master control bit, MCB). AUTO path:
+        OP_SWTCH_AUTO_DI_MAP
+        AND (UNIT_REMOTE_START_MAP OR D_V_REMOTE_START_MAP)
+        AND NOT HEARTBEAT_AUX
+        AND NOT MSS_SHUTDOWN
+        AND (MSS_START_PERM OR MCB seal-in)
+        -> MCB
+    The MCB seal-in only holds the START PERMISSIVE. The remote-start request
+    itself is NOT sealed.
+  - INPUT_MAP rung 35: UNIT_REMOTE_START_MAP = (hardwired remote-start DI OR
+    D_V_REMOTE_START) AND auto switch.
+  => DELTA_V_WRITE[0].1 is a MAINTAINED (level) run request. It must stay 1 for
+     the unit to run. If it goes back to 0 in Auto, MCB drops and the still
+     STOPS. It is not a momentary "start button".
+  => To start it also needs: Auto selected, no HEARTBEAT_AUX, no MSS_SHUTDOWN,
+     and MSS_START_PERM (LUBE_OIL_SHUTDWN_TIMER.DN and EVAP_PRESSURE_PERM) when
+     it first starts.
+  => Excess-drain and conductivity alarms are not in the MSS_SHUTDOWN list, so
+     the PLC does NOT stop the unit for them. If the still stops during such an
+     event, DeltaV (chart or MONITOR logic) is the one dropping the request or
+     reacting to the READ bits.
+
+Related conductivity note:
+  AAH_200_AUX = 0 means a retained conductivity alarm. Recovery alone does not
+  clear it; acknowledge + HMI reset do, once AAH_200_DELAY.DN = 0. ALARMS rungs
+  28-30 also have an automatic path using DISTILATE_TO_STORAGE, which is a
+  DIFFERENT tag from DSTLT_STORAGE.
+
+Heartbeat (separate):
+  DeltaV writes DELTA_V_WRITE[0].0; the PLC copies it to HEARTBEAT. It detects a
+  heartbeat stuck ON too long (HEARTBEAT_AUX, interrupts master control), not
+  one stuck OFF.
+
+
+3. THEORY (UNCONFIRMED)
+-----------------------
+The request to the still (RMT_STRT_STP := 1) is written by a P (pulse) action,
+i.e. once on step entry. The PLC treats it as a maintained run request, and an
+assignment stays in the parameter until something writes it again.
+REVISED after checking the PLC: a request that was "lost" at entry is less
+likely than this: during the excess-drain / conductivity event the chart (or
+MONITOR logic) takes an interruption/recovery path and drops the request to 0
+or marks the still unavailable, and when the PLC condition recovers nothing
+sends the request again. The chart then waits in a hold/unavailable state.
+Restarting from the top re-enters the first step and re-issues the request
+and/or re-initializes retained flags.
+
+Quick discriminator while stuck (compare RMT_STRT_STP / DELTA_V_WRITE[0].1 with
+MCB = DELTA_V_READ[0].0):
+  - request = 1 but MCB = 0  -> PLC side is blocking (Auto switch, HEARTBEAT_AUX,
+                                MSS_SHUTDOWN, MSS_START_PERM). Not a DeltaV
+                                re-issue problem.
+  - request = 0 and MCB = 0  -> DeltaV dropped or never re-sent the request.
+                                Supports the theory.
+  - request = 1 and MCB = 1  -> the still is running; look at what DeltaV is
+                                waiting for (e.g. Available = READ[0].7).
+
+Alternatives that fit the same symptom (must be ruled out):
+  - a retained failure/unavailable flag or Sentinel (MONITOR) latch
+  - a transition that needs a fresh edge, not a level
+  - a PLC permissive still missing (e.g. DSTLT_STORAGE_DELAY_TIMER not done)
+  - stale data / bad quality on the READ words
+  - no run request being written (DELTA_V_WRITE[0].1)
+
+
+4. IS THE THEORY'S PATTERN COMMON DELTAV PRACTICE?
+--------------------------------------------------
+Using a pulse action for a command is common and fine for fire-and-forget
+actions that cannot fail (set a mode, open a valve you will confirm). It is
+NOT considered good practice for a command to another system (here: a request
+to a still through a PLC) that can be refused or missed, unless the chart also
+confirms it took effect.
+The usual DeltaV approach is:
+  - hold the request as a level (non-stored/N qualifier) while the step is
+    active, or
+  - issue the command, then CONFIRM with a feedback expression and a timeout
+    (confirm expressions / fail handling), and
+  - have a recovery path (retry or restart) instead of relying on an operator
+    to restart the chart manually.
+So: the pulse pattern itself is common; the missing confirm/retry is the weak
+point. (This is general DeltaV SFC practice, not verified against this site's
+standards or DeltaV version.)
+
+
+5. DELTAV-SIDE CHANGES IF THE THEORY IS CONFIRMED (no PLC change)
+-----------------------------------------------------------------
+Do these only after the stuck-state capture (section 6) supports the theory.
+Do NOT bypass or force PLC permissives. This looks like a GMP system (WFI), so
+use change control and test off-line/with operations before going live.
+
+ 1. Confirm the request.
+    After A1 (RMT_STRT_STP := 1), add a confirm on STL_RUN_STATUS (or
+    STL_STL_AVAIL, if that is the right signal) with a timeout. Do not advance
+    on "command sent"; advance on "still responded".
+ 2. Retry, don't wait forever.
+    If the confirm times out, re-issue the pulse (return to the step that sends
+    it, or loop a limited number of times), then raise an alert instead of
+    sitting silent.
+ 3. Make the request follow the demand, not step entry.
+    The PLC already treats the request as a level (see section 2), so the
+    qualifier alone is not the fix. What matters is that RMT_STRT_STP is
+    written 1 whenever water is demanded and the still should run, and 0 only
+    when it should stop. Options: use N (non-stored) on the action while the
+    demand step is active, or keep P but add the retry/re-arm logic below.
+    FIRST find every place RMT_STRT_STP is written 0 (see section 7) so the
+    new logic does not fight an existing stop.
+ 4. Re-arm on recovery.
+    Add a transition that detects the still becoming unavailable (and/or an
+    alarm clearing: READ[3].12 0->1, READ[3].3 0->1) and sends the chart back
+    to S000 / the request step, i.e. do automatically what the operator does
+    by restarting the chart.
+ 5. Add a stuck watchdog.
+    If a fill has been requested but STL_RUN_STATUS has not come true within a
+    set time, alarm and auto-restart the chart once.
+ 6. Clear retained state on re-entry.
+    Make sure the top-of-chart steps clear any retained failure/hold flags and
+    reset Sentinel/MONITOR conditions when the cause has cleared.
+
+The smallest-risk first change is #1 + #2 (confirm + retry). #3 and #4 follow
+once the capture shows which one applies.
+
+
+6. CAPTURE WHILE STUCK (TO CONFIRM OR KILL THE THEORY)
+------------------------------------------------------
+DeltaV:
+  - active step and ACTIVE/ERROR/FAILED_CONFIRMS/PENDING_CONFIRMS of each
+    START_FILL and WFI_COMM chart
+  - live value of RMT_STRT_STP
+  - FROM_STILL bits, especially STL_STL_AVAIL and STL_RUN_STATUS
+  - expressions and live values for T001, T002, and the transitions after the
+    S010 and S040 steps (double-click them online)
+  - which MONITOR / Sentinel enable is tripped
+  - data quality (good/bad) of the READ words
+PLC:
+  - DELTA_V_READ[0].7 and [3].12 (and [0].0, [3].3)
+  - DSTLT_STORAGE
+  - DSTLT_STORAGE_DELAY_TIMER.ACC and .DN
+  - AAH_200_DELAY.DN, TAL_200_DELAY.DN
+  - DSTLT_STORAGE_ENABLE_MAP
+  - DIST_COND_ALRM_STARTUP_TMR.DN
+  - DELTA_V_WRITE[0].1
+Decisive test (with operations' OK and site procedure): while stuck and all PLC
+conditions are good, re-send the start request WITHOUT restarting the chart.
+  - Still starts -> the lost/stale request theory is supported.
+  - Still does not start -> a PLC permissive, a retained DeltaV flag or bad
+    data is the real cause.
+
+
+7. HOW AND WHERE TO RE-SEND THE START REQUEST (WITHOUT RESTARTING THE CHART)
+----------------------------------------------------------------------------
+This is a diagnostic test on a live GMP system. Do it only with written/
+recorded approval under your site's SOP / change control, with operations
+present and agreeing the process state is safe.
+
+WHERE
+  - A DeltaV engineering or operator workstation with Control Studio (the
+    photos were taken on 3N1-ENG-1087, controller 3N1-CTR-01).
+  - Module: UTILITIES / UTIL_WFI / WFI-LVL-CTRL, then the WFI_COMM part.
+  - The target is the parameter the chart writes:
+        ^/WFI_COMM/RMT_STRT_STP.CV
+    In the WFI_COMM diagram it appears as the "WFI Remote Start / RMT_STRT_STP"
+    input that feeds the BFI block (TO_STILL).
+  - Several photos are titled "Running(Read-Only)" / "Auto Advance(Read-Only)".
+    A read-only session cannot write values. You need a login with write
+    privileges (and the right key/lock for that area) so Set Value is enabled.
+
+PRE-CHECKS (all must be true, otherwise do NOT do the test)
+  - Stuck state confirmed and the capture in section 6 recorded first
+    (screenshots/photos with timestamps).
+  - No critical alarm: DELTA_V_READ[0].3 shows no shutdown, no alert you
+    cannot explain.
+  - Still HOA is in Auto (STL_HOA_AUTO = True).
+  - PLC conditions good: DELTA_V_READ[3].3 = 1, [3].12 = 1, DSTLT_STORAGE
+    delay done (or understood), heartbeat healthy (READ[0].5 = 0).
+  - Operations agrees a still start request is acceptable right now.
+  - PLC side (checked, see section 2): DELTA_V_WRITE[0].1 is a maintained run
+    request. Auto must be selected and there must be no HEARTBEAT_AUX or
+    MSS_SHUTDOWN. A first start also needs MSS_START_PERM
+    (LUBE_OIL_SHUTDWN_TIMER.DN and EVAP_PRESSURE_PERM, 180 s of
+    PT_103 >= 0.8 in hot standby).
+  - DeltaV side (NOT found in the photos): the place(s) where the chart writes
+    RMT_STRT_STP back to 0. Photographed step action lists only show
+    RMT_STRT_STP := 1 (A1 in the first step of each chart). The steps whose
+    actions were shown do not write 0 to it. Not yet viewed: S000, S020,
+    S040-S060, S080, the HEARTBEAT/MONITOR modules, and the WFI_COMM
+    composite itself. Open each step's action list (click the step, read the
+    actions pane) and search for RMT_STRT_STP before the test, so you know what
+    will clear your written 1.
+
+STEPS
+  1. Open Control Studio online (Online mode, write access) on WFI-LVL-CTRL.
+     Leave the SFC alone - do not Activate Step, Reset Step, Disable or Force
+     Transition. Those change chart state and would defeat the test.
+  2. Open the WFI_COMM diagram and note the current value of RMT_STRT_STP
+     (photo showed False when idle). Record the time.
+  3. In Logix Designer (online) watch: DELTA_V_WRITE[0].1, DELTA_V_READ[0].0,
+     [0].7, [3].12, [3].3 so you can see the request arrive and the response.
+  4. Select RMT_STRT_STP, use Set Value (Value group on the ribbon, or
+     right-click) and write the parameter .CV to 1 (True).
+  5. Watch for the response (give it the normal response time):
+       - DELTA_V_WRITE[0].1 goes to 1 in the PLC
+       - FROM_STILL: STL_RUN_STATUS / STL_STL_AVAIL change
+       - DELTA_V_READ[0].0 (MCB) comes on
+  6. Do NOT write it back to 0 just to "put it back". The PLC treats it as a
+     maintained run request: writing 0 in Auto drops MCB and STOPS the still.
+     Leave it at 1 while the still is needed and let the normal chart/operations
+     procedure take over; write 0 only when operations wants the still stopped.
+     Record the time and the final value.
+  7. Record the result against section 6:
+       - Still starts without a chart restart -> lost/stale request theory is
+         supported; proceed with changes 1 and 2 in section 5.
+       - Still does not start -> a PLC permissive, a retained DeltaV flag or
+         bad data is the real cause. Stop, return values to normal, and use
+         the capture to find the blocking condition.
+
+STOP AND REVERT IF
+  - Any alarm you did not expect, or the still reacts in an unexpected way.
+  - Operations asks to stop.
+  - To stop: write RMT_STRT_STP to 0 (this stops the still in Auto), leave
+    all other values untouched, and note it in the log.
+
+LESS CLEAN ALTERNATIVES (avoid for this test)
+  - Activate Step / Force Transition on the chart: re-fires pulse actions but
+    changes chart state, so it proves less than the direct write.
+  - Restarting the chart: the known workaround, but it cannot tell you why.
+  - If the site has an operator faceplate or display with a start-still
+    command, using that supported path is preferable to a raw Set Value.
+
+DOCUMENT
+  - Who approved, who performed, start/end time, values before/after, result,
+    and the photos/screenshots. File per your SOP (deviation or investigation
+    record as applicable).
+
+
+8. WHERE THINGS LIVE
+--------------------
+PLC program:        plc programs\meco\MECO9497.ACD
+Logix report:       plc programs\meco\Logix Designer Report(s).pdf
+                    (DELTA_V p.89-92, ALARMS p.83-88, MSS_CONTROL p.146-148)
+Related notes:      plc programs\meco\text files\theFix, controlNarrative.txt
+                    txt files\excessDrain.txt, Delta V Read Notes.md
+DeltaV photos:      images\deltaVlogic\IMG_1027-1062.jpeg

@@ -1,0 +1,118 @@
+DELTAV WON'T MAKE THE STILL "AVAILABLE" AFTER AN EXCESSIVE DRAIN ALARM
+======================================================================
+GROUND RULES (operator-stated facts - do not drop or reopen these):
+  1. The ONLY condition that causes the problem is the EXCESSIVE DRAIN alarm.
+  2. The ONLY fix is to RESTART THE FILL EM (equipment module) in DeltaV.
+  Any theory or change must be consistent with both. Anything else (start
+  request, temperature, other alarms, comms) is out of scope unless the
+  operator says otherwise.
+----------------------------------------------------------------------
+Program: MECO9497 (Logix report 10/15/2026) + DeltaV module WFI-LVL-CTRL
+Long version with all side notes: deltaVStuckAnalysis_full.txt
+
+SCOPE (kept narrow on purpose)
+------------------------------
+Only this: an excessive-drain alarm happens, it is cleared and acknowledged on
+the PLC/HMI, the PLC looks normal, but DeltaV does not let the still become
+available, so the still runs and never fills storage. THE ONLY FIX is to
+restart the fill EM (equipment module) in DeltaV. (Earlier notes said "restart
+the chart"; the operator has clarified it is the fill EM.)
+Not investigating unless evidence points there: the start request (starting
+works), other alarm types, comms/heartbeat.
+
+
+1. WHAT IS CONFIRMED (PLC)
+--------------------------
+- Excess drain = the still was NOT allowed to send to storage for 10 minutes
+  (EXCESS_DSTLT_DRAIN_TIMER, MSS_CONTROL rung 19). It is the result of the
+  storage delay not completing (conductivity/temp/enable), not a shutdown.
+- It only drives the horn, the HMI and DELTA_V_READ[3].12
+  (0 = alarm/retained, 1 = cleared). It does NOT gate DSTLT_STORAGE.
+- The PLC sends to storage again as soon as the cause is gone AND the 60 s
+  DSTLT_STORAGE_DELAY_TIMER finishes (DSTLT_STORAGE = DELTA_V_READ[0].7 = 1).
+- Reset: ALARM_ACK_OIT + ALARM_RESET_OIT, and EXCESS_DSTLT_DELAY_TIMER.DN
+  must be 0 (ALARMS rungs 34-35, INPUT_MAP 36-37).
+- 11/06/2026 test: conductivity setpoint lowered -> real high-conductivity
+  alarm -> real excess drain, no PLC changes. Every watched bit changed and
+  returned after acknowledge, and DeltaV did NOT hang.
+  => the PLC side works and the alarm by itself does not hang DeltaV.
+
+2. WHAT IS INFERRED (NOT PROVEN)
+--------------------------------
+- DeltaV's "Still Available" (FROM_STILL OUT_D8 / STL_STL_AVAIL) is very
+  likely DELTA_V_READ[0].7 (DSTLT_STORAGE), judging by the bit order. Confirm
+  which wire goes to OUT_D8.
+- The DeltaV fill sequence (WFI-LVL-CTRL START_FILL for N1/N3/N1BP) sends to
+  drain (DIST WASTE) first, then sets the inlet valve to DIST STOR and
+  EM_FILL_STATUS to "Filling". Its actions are P (pulse) = run once on step
+  entry. The transition expressions were not visible in the photos (the
+  photos are the IDLE state).
+- WFI-LVL-CTRL writes EM_FILL_STATUS.CV := 'WFI_LVL_FILL:N1/N3/N1BP Filling' in
+  its fill steps (photos). That is the hand-off to the fill EM (inference: the
+  EM uses it). Because restarting the EM is what clears the hang, the hang is
+  most likely IN THE EM (its state/step/hold) or in the hand-off between
+  WFI-LVL-CTRL and the EM, not in the PLC. The EM's own logic has not been
+  photographed yet.
+- Working explanation: the excess-drain event leaves the EM in a state (hold,
+  waiting step, failed/aborted, or stale fill status) that does not clear when
+  Available returns. Restarting the EM re-initializes it. Unproven.
+- Whether the event hangs it may also depend on which step the EM / chart was
+  in when the alarm came in (operator's theory; today's test recovered).
+
+3. WHAT TO CAPTURE THE NEXT TIME IT HANGS
+-----------------------------------------
+(Everything else can wait. This is what settles it.)
+A. PLC: DELTA_V_READ[0].7 and DELTA_V_READ[3].12.
+     READ[0].7 = 0 -> PLC still not allowing storage (not a DeltaV problem;
+                      check DSTLT_STORAGE_DELAY_TIMER .ACC/.DN and
+                      AAH_200_DELAY.DN / TAL_200_DELAY.DN).
+     READ[0].7 = 1 -> PLC is sending to storage and DeltaV is not following.
+                      Continue with B.
+B. DeltaV, the FILL EM (this is where the answer most likely is):
+     - the EM name and its state (Running / Holding / Held / Failed /
+       Aborted / Idle, etc.) and the command/phase it is in
+     - the active step of the EM's sequence and the transition NOT passing:
+       its expression and live values (double-click the transition)
+     - EM_FILL_STATUS.CV value while hung (compare to the healthy-fill value)
+     - the EM's inputs from the still / WFI-LVL-CTRL, especially Available
+       (STL_STL_AVAIL), and any "fail"/"hold" conditions
+     - N1/N3/N1BP_WFI_IN_VLV REQ_SP and PV (DIST WASTE or DIST STOR)
+     - the drain-back time condition
+   And in WFI-LVL-CTRL: the active step of each START_FILL chart.
+   Also record exactly what the "restart fill EM" action is (which command, on
+   which screen: e.g. abort/stop then start, or reset/restart) and what the EM
+   state is immediately before and after it.
+C. Take the same screens during a normal, healthy fill. The difference between
+   the two is the cause.
+D. Before the next hang, also note which chart step was active when the
+   excess-drain alarm came in (this tests the step-timing explanation).
+
+Free source of the same information: DeltaV Event Chronicle / Process History
+View for the last real hang (if configured for these modules). It may show the
+active step and what changed, with timestamps, without touching the process.
+
+4. DELTAV-SIDE FIX (ONLY AFTER SECTION 3 SHOWS WHERE THE EM IS STUCK)
+---------------------------------------------------------------------
+Goal: DeltaV does by itself what the operator's "restart the fill EM" does.
+ 1. Find what the EM is waiting on while hung and make that condition depend
+    on the LEVEL of Available (STL_STL_AVAIL / READ[0].7) instead of an event
+    or a timer that was started earlier and never re-armed.
+ 2. Automate the recovery: if a fill is requested, Available = 1, and the EM
+    has not entered/progressed in its fill state for N minutes, issue the same
+    restart command the operator uses (once), and raise an alarm/message so it
+    is visible.
+ 3. If the EM goes to Hold/Failed during the event, add the logic that clears
+    that state when the cause is gone (Available rises), instead of waiting
+    for a manual restart.
+ 4. Clear retained flags/timers on the Available rising edge, not only at EM
+    start.
+This is a GMP/WFI system: change control, test with operations, no PLC changes
+needed for this.
+
+5. FILE LOCATIONS
+-----------------
+PLC program:   plc programs\meco\MECO9497.ACD
+Logix report:  plc programs\meco\Logix Designer Report(s).pdf
+               DELTA_V p.89-96, ALARMS p.83-88, MSS_CONTROL p.141-148
+DeltaV photos: images\deltaVlogic\IMG_1027-1062.jpeg
+Long version:  txt files\deltaVStuckAnalysis_full.txt
