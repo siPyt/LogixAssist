@@ -1,0 +1,264 @@
+EF1125 FREEZE DRYER (LYOPHILIZER) PLC PROGRAM - INDEX / MEMORY AID
+Source: lyo.pdf (Logix Designer export of EF1125AL12NOV2026.ACD, printed 11/13/2026). 3,062 PDF pages.
+This file is only a map. The PDF is the source of truth. Page numbers below are PDF page numbers.
+
+LAYOUT OF THE PDF
+  p.1-5      Controller organizer (task / program / routine list)
+  p.6-1461   Tag listing (global tags with descriptions and addresses)
+  p.1462-2893 Ladder logic, MainTask > MainProgram, one routine after another
+  p.2894-3061 Add-On Instruction (AOI) definitions: parameters, local tags, logic
+  p.3062     Table of contents
+
+HOW THE PROGRAM IS ORGANIZED
+  - MainRoutine calls the R-numbered routines. Number ranges roughly mean:
+    R00xx I/O, scaling, pulses, recipe load/save, flags; R01xx macros for individual devices (vac pumps,
+    valves, heater, VFDs, recorders, PIDs); R02xx device-group control (aeration, shelf/condenser temp,
+    compressors, EEVs, vacuum groups); R03xx alarms, HMI/manual screens, device mode, batch reports,
+    maintenance; R04xx permissives, the freeze drying cycle, steam defrost, leak/bellows tests.
+  - Config bits live in ARR0500[]. Device macros use ARR1000[] (request/active/enabled/outputs) with a step
+    counter in ARR1001[]. Alarm status bits are in ARR3005+ ; manual-screen requests in ARR3010 ;
+    device-mode states in ARR3130 ; status/command flags in ARR0510 / ARR0520.
+  - Typical device macro pattern: request rung -> start permissives rung -> step machine (0 off, 10 run,
+    20 shutdown ...) -> output bits -> alarm macro bits.
+  - Interrupt tasks: OneSecInterrupt, _200mSecInterrupt, _50mSecInterrupt (p.2890-2892); PLC_Fault (p.2893).
+
+ROUTINES  (name | PDF pages | rungs | purpose)
+
+MainRoutine | p.1462-1487 | 87 rungs
+    Top-level routine of `EF1125:MainTask:MainProgram` (IMA Life library v3.1, IMA-NDW 14 Jul 2020, SCL013).
+
+R0001_AnalogInputs | p.1488-1511 | 42 rungs
+    Scales every analog input card channel to engineering units and raises the matching probe-fail alarm macro bit (`ALMM_*_FAIL`, in `AnalogInputsBln` `ARR0010`). Standard channels (pressure transmitters PT, temperature probes TE) call the AOI `R0003_AnalogInScaling`, which converts the raw word + status word to a REAL in `AnalogInputsFlt` `ARR0012[n]` and sets device FAIL_HIGH / FAIL_LOW bits in `ARR0030[n]`.
+
+R0002_AnalogOutputs | p.1512 | 3 rungs
+    Scales the two analog (0-100 %) output commands used by the freeze dryer onto their raw 4-20 mA / D/A output words. It calls the `R0004_AnalogOutScaling` AOI twice: once for FV66 (an analog control valve) and once for HTR1 (a heater). The engineering-unit commands come from `ARR0022[8]` and `ARR0022[11]` (analog output command array); the AOI writes the scaled raw count directly to the rack output words.
+
+R0008_TimePulses | p.1513-1515 | 16 rungs
+    Generates free-running one-scan timing pulses (50 ms, 200 ms, 1 s, 1 min, 1 hour) used by timing/counting logic elsewhere in the program. The 50 ms, 200 ms and 1 s pulses are derived from "cycle interrupt" bits that are set by dedicated routines and cleared here.
+
+R0018_FDRecipeLoadPar | p.1516-1525 | 20 rungs
+    Loads the "current" step type and parameter values (Par 1-15, plus Par 3 hours and Par 3 minutes) of the active freeze-drying recipe step from the big recipe storage array `ARR4137` into the working array `ARR4132`.
+
+R0019_FDRecipeSaveSE | p.1526-1536 | 29 rungs
+    Saves the "step end" data of the active freeze-drying cycle step into the step-end storage array `ARR4134` (FDStepEndDataFlt). It uses the same indirect-pointer approach as the recipe load routine: a step offset (`FD_REC_SE_STP_OFFST` = active step - 1) plus a per-item base of 0, 50, 100, ... 1300 gives `FD_REC_SE_POINTER`, which indexes `ARR4134`.
+
+R0027_SaveStartEndTimes | p.1537-1543 | 16 rungs
+    Handles batch-report "save start time" (SAV_STRT_TIME_*) and "save end data" (SAV_END_DATA_*) requests. While a request bit is on, it reads the PLC wall-clock time (GSV WallClockTime/DateTime) and converts it to a text string with the `R0026_DateToString` AOI into a fixed slot of string array `ARR3113` (even indexes = start times, odd = end times).
+
+R0030_VFDInterface | p.1544-1546 | 9 rungs
+    Maps the raw I/O of the screw-compressor VFDs (EtherNet/IP-style adapter tags `VFD1` and `VFD2`) into a UDT array `ARR0305`, one element per VFD, so the rest of the program works with named members. Instance numbers match the COM number (index 0 is a reserved element). Only COM1 and COM2 are mapped in this routine, even though the comment says up to 4 VFDs are supported.
+
+R0051_DigitalInputFlags | p.1547-1556 | 68 rungs
+    Copies every physical digital input (from the I/O racks `RACK_51`, `RACK_52`, `RACK_54`, `RACK_55`, `MANIFLD1` and the controller `Local:3` card) into a corresponding internal "flag" bit in the `DigitalInputFlagsBln` bit array `ARR0510`. All other routines use the flag bits instead of the raw I/O addresses, so hardware mapping lives in one place.
+
+R0052_DigitalOutputFlags | p.1557-1566 | 64 rungs
+    Last routine called in the scan: copies the internal "command flag" bits of `DigitalOutputFlagsBln` (`ARR0520`) – set by the device control/command routines (mainly R0053_DeviceCommand) – to the physical digital output points on `Local:4`, `RACK_51`, `RACK_52`, `RACK_54`, `RACK_55` and `MANIFLD1`. Every rung is a single flag contact -> output coil (XIC -> OTE, inferred).
+
+R0053_DeviceCommand | p.1567-1591 | 67 rungs
+    Central "device command" routine. For every digital output device on the machine it ORs together all the requests from the various control routines (auto-cycle macros, vacuum groups, compressor/pump files, manual-controls screen, loading panels, Device Mode states) into one command flag bit in `DigitalOutputFlagsBln` (`ARR0520`). Config bits (`ARR0500`) select which source applies for the installed equipment.
+
+R0054_ControlPowerStatus | p.1592-1597 | 16 rungs
+    Monitors the machine control-power circuit and sequences the recovery after a control power loss or emergency (stop) switch-off.
+
+R0055_AutoCycleStatus | p.1598-1606 | 17 rungs
+    Derives the machine-level "which automatic cycle is running" status bits from the active cycle number (`ARR0551[0]`, `CYCLE_NUMBER`) and the individual cycle macros, builds the combined `AUTO_CYCLE_ACTIVE` bit, keeps a cycle elapsed-time clock (hours/minutes/seconds in `ARR0551[2..4]`) that runs while any auto cycle is active, and latches/clears an "Auto cycle aborted" message bit when any cycle's abort-selected bit is set.
+
+R0099_StatusBitsToSCADA | p.1607-1653 | 164 rungs
+    Pure data-mapping routine that publishes each macro routine's status to the SCADA/DeltaV data block. Part 1 (rungs 2-83) builds a status word per routine in `ARR0991[<routine number>]` – bit 0 = macro active, bit 1 = macro ready, bit 2 = macro done/complete (unless otherwise noted) – using the routine's `ARR####[0].x` macro bits, gated by system configuration bits (`ARR0500[]`) so only configured equipment reports.
+
+R0100_VP1Dry | p.1654-1662 | 20 rungs
+    "Macro" (step-sequencer) routine for vacuum pump 1 (dry-type pump, optionally solvent machine).
+
+R0102_VP2Dry | p.1663-1671 | 20 rungs
+    Step-sequencer "macro" for vacuum pump 2 (dry type, optional solvent machine); a structural copy of R0100_VP1Dry using the `ARR1020[]` / `ARR1021[]` arrays.
+
+R0113_MainIsolationValve | p.1672-1691 | 21 rungs
+    Step-sequencer "macro" for FV0001, the main isolation valve (MIV) between the product chamber and the condenser.
+
+R0114_HydraulicPump | p.1692-1697 | 14 rungs
+    Step-sequencer "macro" for the hydraulic pump HYD1 (shelf/ram hydraulics).
+
+R0115_Heater | p.1698-1708 | 18 rungs
+    Step-sequencer "macro" and PID heater-output logic for the shelf-fluid (silicone oil) heater HTR1, which may have one or two SCRs (HTR1 / HTR1B).
+
+R0116_FV66PID | p.1709-1715 | 16 rungs
+    Step-sequencer "macro" and PID loop for the FV66 gas-bleed modulating valve, which controls chamber vacuum (microns) during evacuation / freeze-drying / performance test / manual mode.
+
+R0123_ScrewComVFD1 | p.1716-1767 | 53 rungs
+    Step-sequencer "macro" for refrigeration compressor COM1, a screw compressor driven by a VFD (Ethernet/IP drive word image `ARR0305[1]`).
+
+R0124_ScrewComVFD2 | p.1768-1819 | 53 rungs
+    Controls refrigeration screw compressor COM2 driven by a variable-frequency drive (VFD2, word set `ARR0305[2]`).
+
+R0135_ShlfFluidCircPumps | p.1820-1830 | 19 rungs
+    A "macro" step sequencer that starts and runs the shelf silicone-fluid circulation pumps CP1 and CP2 on request from the shelf temperature control (R0202). The step counter (`ARR1351[0]`) starts the primary pump chosen by R0203_ShCircPumpRotation (`ARR2031[1]`: 1=CP1, 2=CP2), waits for its on-feedback + 5 s, and reports "CPx ready".
+
+R0136_CondFluidCircPumps | p.1831-1841 | 19 rungs
+    Step-sequencer "macro" that starts and runs the condenser silicone-fluid circulation pumps CP3 and CP4 on request from R0206_FluidCircCondCool. The primary pump (1=CP3, 2=CP4) is selected by R0199_CondCircPumpRot (`ARR1991[1]`). The sequence starts the primary pump, waits for its on-feedback plus 5 s, then reports "ready".
+
+R0143_ShelfRamMvmtNonCLL | p.1842-1852 | 25 rungs
+    Step-sequencer macro that moves the shelf stack hydraulic ram on machines without closed-loop position/level control ("NonCLL", position by limit switches / pressure switch rather than a transducer). It handles requests from the loading panel (jog up/retract, jog down/extend) and from the freeze-dry cycle and shelf ram bellows test (extend to ram/stoppering pressure, home/retract).
+
+R0151_ChartRecorder | p.1853-1865 | 33 rungs
+    Copies scaled analog process values (pressures, temperatures; from the `ARR0012[]` engineering-unit array produced by R0001_AnalogInputs) to the 30 output channels of the chart recorder module (`ChartRecorder:O.Data[0..29]`, tags `REC_CHANNEL01..30`).
+
+R0152_DeltaVInterface | p.1866-1879 | 36 rungs
+    Packages process data for the plant DeltaV system (the "3LYP-0050" lyophilizer skid). It copies scaled analog values (shelf temperatures, fluid temps, vacuum, condenser pressure, heater output) into `DV_REAL_TAG[]`, equipment run/alarm states into `DV_INT_TAG[]`, and produces text values for the active cycle name (`DV_CYCLE_TAG`), cycle status (`DV_STATUS_TAG`) and batch name (`DV_BATCH_TAG`).
+
+R0153_ShelfTmpControlPID | p.1880-1886 | 16 rungs
+    Runs the shelf-temperature PID loop (`ARR1533`, a PID instruction) when requested by R0202_ShelfTempControl. It loads the setpoint from the active mode (freeze-dry recipe, performance test, or manual screen), builds the process value (shelf fluid inlet temperature TE201/TE201A, optionally averaged with TE200), and runs the PID every 200 ms.
+
+R0154_FldCircCondCoolPID | p.1887-1894 | 15 rungs
+    Runs the condenser fluid-temperature cooling PID (`ARR1543`) on request from R0206_FluidCircCondCool.
+
+R0199_CondCircPumpRot | p.1895-1903 | 12 rungs
+    Decides which of the two condenser fluid circulation pumps, CP3 or CP4, is the primary (lead) pump and which is the secondary, and publishes it in `PRIMARY_CP` (ARR1991[1]: 1=CP3, 2=CP4). The lead pump is swapped each time a new assignment is made (a freeze-drying cycle start with the macro requested) and when the primary pump fails/low pressure while the macro is ready.
+
+R0200_ChamberAeration | p.1904-1916 | 22 rungs
+    Macro sequencer that raises chamber pressure with nitrogen or sterile air in two stages: "pre-aeration" (partial backfill, steps 10/20, to a setpoint below atmosphere) and full "aeration" to atmosphere (steps 30/40), driven by PT105 chamber pressure.
+
+R0201_CondenserAeration | p.1917-1924 | 16 rungs
+    Macro that brings the ice condenser back up to atmospheric pressure ("aeration") by opening the sterile-air supply (FV0007) and condenser inlet valve (FV0008), optionally the filter integrity-test isolation valves (FV0092/FV0094), or — on solvent machines doing a nitrogen aeration — the nitrogen supply FV0006.
+
+R0202_ShelfTempControl | p.1925-1963 | 38 rungs
+    Macro (step-sequencer) routine for shelf temperature control of the EF1125 freeze dryer.
+
+R0203_ShCircPumpRotation | p.1964-1972 | 12 rungs
+    "Macro" (step-sequencer) routine that alternates (rotates) which of the two shelf fluid circulation pumps (CP1 / CP2) is the **primary** (lead) pump and which is the **secondary** (standby). It is requested by R0202_ShelfTempControl. On each new run it toggles the primary/secondary assignment, waits for short timers, then reports READY.
+
+R0204_CompressorRotation | p.1973-2038 | 31 rungs
+    Macro (step-sequencer) that decides which refrigeration compressors (COM1-COM4, depending on the 2/3/4-compressor configuration) act as primary, secondary, tertiary and quaternary compressor, based on which compressors are currently "operational" (no faults) and on whether shelf cooling and/or condenser cooling are active.
+
+R0206_FluidCircCondCool | p.2039-2107 | 33 rungs
+    Macro (step-sequencer) for **condenser cooling using fluid circulation** (the condenser is cooled by refrigerant-chilled circulating fluid, pumps CP3/CP4, instead of direct expansion).
+
+R0209_ElecExpVlvShlfCool | p.2108-2156 | 90 rungs
+    Controls the **electronic expansion valves (ETV17-ETV20) that feed refrigerant to the shelf heat exchangers**, one valve per screw compressor (COM1-COM4 -> ETV17, ETV18, ETV19, ETV20, with SV0109-SV0112 as the shelf-cooling liquid solenoids). Each ETV runs a superheat PID (shelf HX refrigerant outlet temp minus saturation temp from suction pressure, setpoint ENG_PAR13 = 8 degC).
+
+R0210_ElecExpVlvCondCool | p.2157-2216 | 93 rungs
+    Controls the **electronic expansion valves (ETV29-ETV32) that feed refrigerant to the condenser (ice condenser coil) heat exchangers**, one per screw compressor (COM1-COM4 -> ETV29, ETV30, ETV31, ETV32; SV0101-SV0104 are the compressor condenser-cooling liquid solenoids). Each ETV runs a superheat PID (SP = ENG_PAR15 = 8 degC; PV = condenser HX refrigerant outlet temperature minus saturation temperature).
+
+R0211_VacGrp1With2VP1BP | p.2217-2229 | 20 rungs
+    Macro (step-sequencer) that starts and stops **Vacuum Group 1** on a system configured with **2 vacuum pumps and 1 booster pump** (SYS2VP1BP). Group 1 = vacuum pump 1 (VP1), its isolation valve FV0011, and booster pump 1 (BP1) with SV0190 (booster pump path valve). It is started when R0219 (or a media-fill / bellows-evac / ULP macro) requests "vac group 1 (2VP, 1BP)".
+
+R0212_VacGrp2With2VP1BP | p.2230-2242 | 20 rungs
+    Macro (step-sequencer) that starts and stops **Vacuum Group 2** on a system with **2 vacuum pumps and 1 booster pump** (SYS2VP1BP). Group 2 = vacuum pump 2 (VP2) and its isolation valve FV0012. The single booster pump **BP1 is shared** with Group 1 (R0211): this routine uses its own copy of the "run BP1" request bit (ARR2120[1].1) but the step-50 logic also checks Group 1's RUN_BP1.
+
+R0218_VacPumpRotation | p.2243-2255 | 19 rungs
+    Assigns which vacuum group (VG1 = VP1 side, VG2 = VP2 side) is **primary** and which is **secondary** and swaps them each time the assign step runs with the assignment latch cleared (intended to balance wear / fail over to the other group). Step 10 performs the swap; the latch is cleared in step 0 (when a cycle is active and no primary is assigned) and in step 20 (alarm branch).
+
+R0219_VacPumpEvacCntrl | p.2256-2293 | 34 rungs
+    Top-level **evacuation / vacuum-control macro** for the chamber vacuum system.
+
+R0300_Alarms | p.2294-2395 | 204 rungs
+    Central alarm-condition routine for the freeze dryer.
+
+R0301_ManualCntrlsScreen | p.2396-2457 | 129 rungs
+    Logic behind the SCADA "Manual Controls" screen.
+
+R0302_LoadingPanel | p.2458-2468 | 28 rungs
+    Logic behind the SCADA "Loading Panel" screen. It generates the permissives for the shelf-ram jog up / jog down buttons, controls the step sequence for jog up/down, enables the shelf / loading door stop-reset button, controls the chamber sight-glass light (L602) with a 60 s on-time, enables the loading/unloading-complete button, and publishes a "loading panel enabled" status bit.
+
+R0305_LRPevacuation | p.2469-2477 | 21 rungs
+    Macro (step-sequencer) that starts and stops the Liquid Ring Pump (LRP1) used for evacuating the chamber/system and opens its vacuum valve FV0015.
+
+R0308_RamBellowsEvac | p.2478-2497 | 17 rungs
+    "Macro" (step sequencer) that evacuates the shelf-ram bellows (the bellows that seal the shelf stack ram) using the main vacuum pump group.
+
+R0309_MIVBellowsEvac | p.2498-2517 | 17 rungs
+    Step-sequencer "macro" that evacuates the main isolation valve (MIV) bellows (between chamber and condenser) with the main vacuum pump group. It is structurally a clone of R0308_RamBellowsEvac but uses condenser pressure PT203, MIV bellows vacuum PT307, MIV-specific request bits, and valves SV0077 (close, vent) / SV0078 (open, evac).
+
+R0311_BatchReporting | p.2518-2544 | 42 rungs
+    Macro/step sequencer that coordinates batch-report generation with the SCADA XLReporter package.
+
+R0312_Maintenance | p.2545-2563 | 45 rungs
+    Preventive-maintenance tracking for the freeze dryer.
+
+R0313_DeviceMode | p.2564-2595 | 52 rungs
+    Per-device instantiation of the "device mode" function blocks (R0014_DevModeNCValves, R0015_DevModeNOValves, R0016_DevModeModValves, R0017_DevModePumpsMtrs). Each rung handles the manual "Device Mode" state selection from the SCADA/manual-controls screen for one device (booster pump, compressor, circulation pump, ETV modulating valve, FV/SV on-off valve, hydraulic pump, LRP, vacuum pump).
+
+R0400_Permissives | p.2596-2638 | 47 rungs
+    Central permissive-calculation routine. It evaluates, for each automatic cycle type, a list of numbered "cycle permissive" bits (`CYC_PER_<cycle>_<n>`) in the `ARR4000` permissives array, and a small set of shelf-movement permissives (`SHELF_MVMT_PER_<n>`, `ARR4000[150..153]`).
+
+R0410_FreezeDryingCycle | p.2639-2773 | 139 rungs
+    Runs the complete automatic freeze-dry cycle for the EF1125 lyophilizer as a step-counter state machine.
+
+R0413_FDRecipeDataStrg | p.2774-2785 | 23 rungs
+    Small step-sequencer "macro" that runs in the background of a freeze-dry (FD) cycle to record the recipe/process data actually achieved.
+
+R0430_SteamDefrost | p.2786-2819 | 67 rungs
+    Step-sequencer "macro" that runs the automatic condenser steam-defrost cycle (also usable as "defrost during unloading" inside an FD cycle's storage/unloading step). Sequence: aerate condenser → drain → evacuate condenser (PT203 ≤ 3 psia) → steam defrost (FV0020 steam valve, until drain temp TE213/TE213A reaches 90 °C and the defrost timer is done) → dry condenser (vacuum + timer) → isolate → aerate → done.
+
+R0460_LeakTest | p.2820-2848 | 62 rungs
+    Auto "macro" (cycle #7 = Leak Test) sequencer for the freeze-dryer. It checks start permissives, then runs a step-counter state machine (`ARR4601[0]`): evacuate chamber/condenser/sterile filter(s) -> dry system (timer) -> close FV2 -> test system (rate-of-rise leak test, repeats allowed) -> evacuate MIV bellows -> close MIV -> aerate chamber & condenser -> Done (999) or Aborted (900).
+
+R0461_ShelfRamBellowsTst | p.2849-2869 | 57 rungs
+    Auto "macro" (cycle #8 = RAMBT, Shelf Ram Bellows Test) sequencer.
+
+R0462_MIVBellowsTest | p.2870-2889 | 47 rungs
+    Auto "macro" (cycle #9 = MIVBT, Main Isolation Valve Bellows Test) sequencer.
+
+OneSecInterrupt | p.2890 | 1 rungs
+
+_200mSecInterrupt | p.2891 | 1 rungs
+
+_50mSecInterrupt | p.2892 | 1 rungs
+
+PLC_Fault | p.2893 | 1 rungs
+
+ADD-ON INSTRUCTIONS
+
+R0003_AnalogInScaling | p.2895-2914 | 12 rungs
+    Scales a raw analog input word (`INPUT_PIW`) from a Beckhoff-style (KLxxxx terminal) analog module into an engineering-unit value `PV_ENG`, for several input types (RTD/TC, 4-20 mA, 0-20 mA, hi-res 0-20 mA, 0-10 V hi-res). Optionally applies a user two-point (low/high) slope-intercept calibration driven from SCADA via the `CALIBRATE_BOOL`/`CALIBRATE_FLOAT` UDTs.
+
+R0004_AnalogOutScaling | p.2915-2921 | 3 rungs
+    Converts an engineering-unit value (`PV_ENG`) into the raw integer register value for an analog output channel, for bipolar (-32767..+32767) or unipolar (0..32767) outputs.
+
+R0005_AnalogPirani | p.2922-2928 | 8 rungs
+    Converts the raw analog input word from a Linear Pirani vacuum gauge (0..32767 counts across a voltage span) into volts and a pressure in microns (log-linear relationship), clamped at 30000 microns, and flags an out-of-range signal when the voltage is outside the valid span plus 5% deadband.
+
+R0006_TimerHMS | p.2929-2939 | 7 rungs
+    Count-down timer with hours/minutes/seconds interval inputs and hours/minutes/seconds-remaining outputs, driven by an external 1-second pulse (`SECOND_PULSE`). `ENABLE` keeps it timing/done-latched, `HOLD` pauses it while retaining remaining time, and `TIMER_DONE` latches when the count reaches 0:0:0. Used widely for step timers in the macros (e.g.
+
+R0007_Timer200Msec | p.2940-2944 | 4 rungs
+    Millisecond count-down timer that is stepped by an external 200 ms pulse (`_200_MSEC_PULSE`), so its resolution is 200 ms. `ENABLE` runs/holds it, `HOLD` pauses it, `TIMER_DONE` latches when the remaining time is exhausted. Intended to be called from the 200 ms periodic task logic.
+
+R0009_Timer50Msec | p.2945-2949 | 4 rungs
+    Millisecond count-down timer stepped by an external 50 ms pulse (`_50_MSEC_PULSE`), so its resolution is 50 ms. `ENABLE` runs/holds it, `HOLD` pauses it, `TIMER_DONE` latches when remaining time is exhausted.
+
+R0011_MaintHours | p.2950-2960 | 9 rungs
+    Maintenance hour-meter for a device (pump, motor, etc.). It counts 1-second pulses into two independent h:m:s accumulators: a RUNTIME timer (main) and a TIME_SINCE_LAST_MAINTENANCE timer (secondary). It raises `MAINT_DUE` when the accumulated hours reach the maintenance cycle setpoint `MAINT_CYC_HRS`.
+
+R0012_MaintDays | p.2961-2966 | 5 rungs
+    Calendar-style maintenance interval timer: counts 1-hour pulses into days + hours "time since last maintenance" and raises `MAINT_DUE` when elapsed days reach the setpoint `MAINT_CYC_DAYS`.
+
+R0013_MaintEvents | p.2967-2971 | 5 rungs
+    Event counter for maintenance (e.g. count of cycles or starts of a device). Counts occurrences of `EVENT` while enabled and sets `EVENT_DONE` when the count reaches `EVENT_SETPOINT`.
+
+R0014_DevModeNCValves | p.2972-2977 | 5 rungs
+    Manual "device mode" (maintenance/manual control screen) state handler for a normally-closed (NC) on/off valve.
+
+R0015_DevModeNOValves | p.2978-2981 | 5 rungs
+    Manual "device mode" state handler for a normally-open (NO) on/off valve (mirror image of R0014_DevModeNCValves). Step 0 = valve open, step 10 = valve closed. Only close permissives are used.
+
+R0016_DevModeModValves | p.2982-2988 | 6 rungs
+    Manual "device mode" state handler for modulating (positioner/% output) valves.
+
+R0017_DevModePumpsMtrs | p.2989-2995 | 6 rungs
+    Manual "device mode" state handler for pumps and motors (all). Step 0 = off, step 10 = on, driven by a SCADA-written `ON_STATE`; the on state is dropped if the start permissive is lost; enables the HMI on/off button only when allowed; clears manual selection when device mode is off; and zeros the speed/percent output `CV` when off.
+
+R0020_FrzDryRamp | p.2996-3006 | 9 rungs
+    Linear time-based setpoint ramp for the freeze-dry cycle. Given a start value, end value and duration (minutes), it counts the remaining time down (minutes + seconds, driven by a 1-second pulse) and computes the current ramp setpoint `RAMP_CV` (START_VALUE at the start, END_VALUE when time runs out). Sets `RAMP_DONE` when the countdown reaches 0:00.
+
+R0024_EEVPressToTemp | p.3007-3042 | 9 rungs
+    Converts a refrigerant suction/evaporator pressure reading (gauge psig) into the refrigerant saturation temperature (deg C) by linear interpolation in a pressure/temperature lookup table. Used by the electronic expansion valve (EEV/ETV) superheat control. Supports two refrigerants: 1 = R507 (110-point table) and 2 = R410A (171-point table).
+
+R0025_StringToDate | p.3043-3047 | 3 rungs
+    Parses a date/time string of the form `YYYY-MM-DD HH:MM:SS` (fixed character positions) into six DINT values in the layout used by the controller's WallClockTime DateTime attribute (Year, Month, Day, Hour, Minute, Second). Implemented in Relay Ladder (3 rungs, 0-2). Call prototype: `R0025_StringToDate(DATE_TIME_STRING, DATE_OUT)`
+
+R0026_DateToString | p.3048-3054 | 5 rungs
+    Converts six DINT date/time values (Year, Month, Day, Hour, Minute, Second, as read from the controller's WallClockTime DateTime attribute) into a fixed 19-character text `YYYY-MM-DD HH:MM:SS`, using caller-supplied separator strings and zero-padding single-digit fields. Implemented in Relay Ladder (5 rungs, 0-4). Call prototype: `R0026_DateToString(DATE_IN, DATE_TIME_SYNTAX, DATE_TIME_STRING)`
+
+R0028_ValveFailTimer | p.3055-3058 | 4 rungs
+    Simple seconds-based ON-delay timer used for valve open/close fail alarms. While `ENABLE` is true it counts `SEC_REMAINING` down from `TIME_INTERVAL_SEC` once per `SECOND_PULSE`; when it reaches 0, `TIMER_DONE` is true. When `ENABLE` is false it reloads `SEC_REMAINING` and `TIMER_DONE` goes false.
+
