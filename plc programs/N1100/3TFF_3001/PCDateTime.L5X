@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="21.00" TargetName="PCDateTime" TargetType="Routine" TargetSubType="ST" ContainsContext="true" Owner="Cherokee_GMP_Maintenance@outlook.com" ExportDate="Thu Jul 23 14:06:12 2026" ExportOptions="References DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="DSP090002">
+<DataTypes Use="Context">
+</DataTypes>
+<Tags Use="Context">
+<Tag Name="PCDateTime" TagType="Base" DataType="DINT" Dimensions="7" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Date/Time Array from PC]]>
+</Description>
+<Data>E5 07 00 00 0B 00 00 00 08 00 00 00 0B 00 00 00 
+29 00 00 00 05 00 00 00 FF FF FF FF</Data>
+<Data Format="Decorated">
+<Array DataType="DINT" Dimensions="7" Radix="Decimal">
+<Element Index="[0]" Value="2021"/>
+<Element Index="[1]" Value="11"/>
+<Element Index="[2]" Value="8"/>
+<Element Index="[3]" Value="11"/>
+<Element Index="[4]" Value="41"/>
+<Element Index="[5]" Value="5"/>
+<Element Index="[6]" Value="-1"/>
+</Array>
+</Data>
+</Tag>
+</Tags>
+<Programs Use="Context">
+<Program Use="Context" Name="MainProgram">
+<Routines Use="Context">
+<Routine Use="Target" Name="PCDateTime" Type="ST">
+<STContent>
+<Line Number="0">
+<![CDATA[(*Update the internal PLC clock with the PC clock when the microseconds value is not -1*)]]>
+</Line>
+<Line Number="1">
+<![CDATA[IF PCDateTime[6] <> -1 THEN;]]>
+</Line>
+<Line Number="2">
+<![CDATA[	SSV (WALLCLOCKTIME, , DateTime, PCDateTime[0]);]]>
+</Line>
+<Line Number="3">
+<![CDATA[	PCDateTime[6] := -1;]]>
+</Line>
+<Line Number="4">
+<![CDATA[END_IF;]]>
+</Line>
+<Line Number="5">
+<![CDATA[]]>
+</Line>
+</STContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+</Controller>
+</RSLogix5000Content>

@@ -1,0 +1,216 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.04" TargetName="Memory_Data" TargetType="Routine" TargetSubType="RLL" ContainsContext="true" Owner="Cherokee_GMP_Maintenance@outlook.com" ExportDate="Thu Jul 23 14:24:43 2026" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans LogicalHierarchy">
+<Controller Use="Context" Name="TFF">
+<DataTypes Use="Context">
+<DataType Name="Memory_Data" Family="NoFamily" Class="User">
+<Description>
+<![CDATA[This UDT is for putting the memory information returned by the Controller]]>
+</Description>
+<Members>
+<Member Name="ZZZZZZZZZZMemory_Dat0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="Reading_Request" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZMemory_Dat0" BitNumber="0" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Request of Memory data reading]]>
+</Description>
+</Member>
+<Member Name="Free_Mem_IO" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Free I/O Memory]]>
+</Description>
+</Member>
+<Member Name="Free_Mem_DT" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Free Data & Logic Memory]]>
+</Description>
+</Member>
+<Member Name="Free_Mem_Gen" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler 1756-L55M16 only: Free Expansion Memory]]>
+</Description>
+</Member>
+<Member Name="Free_Memory" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Total Free  Memory (addition)]]>
+</Description>
+</Member>
+<Member Name="Total_Mem_IO" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Total I/O Memory]]>
+</Description>
+</Member>
+<Member Name="Total_Mem_DT" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Total Data & Logic Memory]]>
+</Description>
+</Member>
+<Member Name="Total_Mem_Gen" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler 1756-L55M16 only: Total Expansion Memory]]>
+</Description>
+</Member>
+<Member Name="Total_Memory" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Total Memory (addition)]]>
+</Description>
+</Member>
+<Member Name="Biggest_Gen_Mem_Size_Ava" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler 1756-L55M16 only: Additionnal Expansion Memory]]>
+</Description>
+</Member>
+<Member Name="Biggest_IO_Mem_Size_Ava" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler 1756-L55M16 only: Largest contiguous block of Additionnal free Expansion Memory]]>
+</Description>
+</Member>
+<Member Name="Biggest_DT_Mem_Size_Ava" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler dsata: Largest contiguous block of Additionnal free Expansion Memory]]>
+</Description>
+</Member>
+<Member Name="Total_Mem_DT_Real" DataType="REAL" Dimension="0" Radix="Float" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Total Data & Logic Memory]]>
+</Description>
+</Member>
+<Member Name="Free_Mem_DT_Real" DataType="REAL" Dimension="0" Radix="Float" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Free Data & Logic Memory]]>
+</Description>
+</Member>
+<Member Name="Used_Mem_DT_Real" DataType="REAL" Dimension="0" Radix="Float" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Used Data & Logic Memory]]>
+</Description>
+</Member>
+<Member Name="Percentage_Used_DT" DataType="REAL" Dimension="0" Radix="Float" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Controler data: Percentage of used Data & Logic Memory]]>
+</Description>
+</Member>
+</Members>
+</DataType>
+</DataTypes>
+<Tags Use="Context">
+<Tag Name="Memory_Data" TagType="Base" DataType="Memory_Data" Constant="false" ExternalAccess="Read/Write">
+<Data Format="L5K">
+<![CDATA[[0,1022680,276456,0,1299136,1048576,2097152,0,3145728,0,1021560,274976,2.09715200e+006,2.76456000e+005
+		,1.82069600e+006,8.68175507e+001]]]>
+</Data>
+<Data Format="Decorated">
+<Structure DataType="Memory_Data">
+<DataValueMember Name="Reading_Request" DataType="BOOL" Value="0"/>
+<DataValueMember Name="Free_Mem_IO" DataType="DINT" Radix="Decimal" Value="1022680"/>
+<DataValueMember Name="Free_Mem_DT" DataType="DINT" Radix="Decimal" Value="276456"/>
+<DataValueMember Name="Free_Mem_Gen" DataType="DINT" Radix="Decimal" Value="0"/>
+<DataValueMember Name="Free_Memory" DataType="DINT" Radix="Decimal" Value="1299136"/>
+<DataValueMember Name="Total_Mem_IO" DataType="DINT" Radix="Decimal" Value="1048576"/>
+<DataValueMember Name="Total_Mem_DT" DataType="DINT" Radix="Decimal" Value="2097152"/>
+<DataValueMember Name="Total_Mem_Gen" DataType="DINT" Radix="Decimal" Value="0"/>
+<DataValueMember Name="Total_Memory" DataType="DINT" Radix="Decimal" Value="3145728"/>
+<DataValueMember Name="Biggest_Gen_Mem_Size_Ava" DataType="DINT" Radix="Decimal" Value="0"/>
+<DataValueMember Name="Biggest_IO_Mem_Size_Ava" DataType="DINT" Radix="Decimal" Value="1021560"/>
+<DataValueMember Name="Biggest_DT_Mem_Size_Ava" DataType="DINT" Radix="Decimal" Value="274976"/>
+<DataValueMember Name="Total_Mem_DT_Real" DataType="REAL" Radix="Float" Value="2097152.0"/>
+<DataValueMember Name="Free_Mem_DT_Real" DataType="REAL" Radix="Float" Value="276456.0"/>
+<DataValueMember Name="Used_Mem_DT_Real" DataType="REAL" Radix="Float" Value="1820696.0"/>
+<DataValueMember Name="Percentage_Used_DT" DataType="REAL" Radix="Float" Value="86.81755"/>
+</Structure>
+</Data>
+</Tag>
+<Tag Name="Memory_Temp" TagType="Base" DataType="INT" Dimensions="29" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Destination elements for message read Memory informations]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[[5,1,0,-6474,3,3578,1,0,0,2,0,0,4,0,8,0,0,5,0,0,0,6,0,-6754,3,7,0,3208,1]]]>
+</Data>
+<Data Format="Decorated">
+<Array DataType="INT" Dimensions="29" Radix="Decimal">
+<Element Index="[0]" Value="5"/>
+<Element Index="[1]" Value="1"/>
+<Element Index="[2]" Value="0"/>
+<Element Index="[3]" Value="-6474"/>
+<Element Index="[4]" Value="3"/>
+<Element Index="[5]" Value="3578"/>
+<Element Index="[6]" Value="1"/>
+<Element Index="[7]" Value="0"/>
+<Element Index="[8]" Value="0"/>
+<Element Index="[9]" Value="2"/>
+<Element Index="[10]" Value="0"/>
+<Element Index="[11]" Value="0"/>
+<Element Index="[12]" Value="4"/>
+<Element Index="[13]" Value="0"/>
+<Element Index="[14]" Value="8"/>
+<Element Index="[15]" Value="0"/>
+<Element Index="[16]" Value="0"/>
+<Element Index="[17]" Value="5"/>
+<Element Index="[18]" Value="0"/>
+<Element Index="[19]" Value="0"/>
+<Element Index="[20]" Value="0"/>
+<Element Index="[21]" Value="6"/>
+<Element Index="[22]" Value="0"/>
+<Element Index="[23]" Value="-6754"/>
+<Element Index="[24]" Value="3"/>
+<Element Index="[25]" Value="7"/>
+<Element Index="[26]" Value="0"/>
+<Element Index="[27]" Value="3208"/>
+<Element Index="[28]" Value="1"/>
+</Array>
+</Data>
+</Tag>
+</Tags>
+<Programs Use="Context">
+<Program Use="Context" Name="MainProgram">
+<Routines Use="Context">
+<Routine Use="Target" Name="Memory_Data" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[==========================================================================================================================================
+Memory Informations : read the PLC Memory Informations
+
+List of treatments handled by the routine :
+- Calculation Memory Datas
+
+                                                    --------------------------------------------------------------------------------------------------------------------------------------------------
+History 
+		2021-Nov-17 - Merck - Q.Spindler - Initial version for Candidate Release 1.01.00.00.a
+==========================================================================================================================================]]>
+</Comment>
+<Text>
+<![CDATA[NOP();]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Comment>
+<![CDATA[This rung takes the data that is returned from the User Memory Object and places it into a User Define Data Type or easy of viewing.
+The reason why we must multiple the returned data by 4 is because the dat is the number of 32 bit words of memory used.  We spec memory by bytes, so we must multiple by 4 to get memory in bytes.]]>
+</Comment>
+<Text>
+<![CDATA[[COP(Memory_Temp[3],Memory_Data.Free_Mem_IO,1) MUL(Memory_Data.Free_Mem_IO,4,Memory_Data.Free_Mem_IO) ,COP(Memory_Temp[5],Memory_Data.Free_Mem_DT,1) MUL(Memory_Data.Free_Mem_DT,4,Memory_Data.Free_Mem_DT) ,COP(Memory_Temp[7],Memory_Data.Free_Mem_Gen,1) MUL(Memory_Data.Free_Mem_Gen,4,Memory_Data.Free_Mem_Gen) ,CPT(Memory_Data.Free_Memory,Memory_Data.Free_Mem_Gen+Memory_Data.Free_Mem_DT+Memory_Data.Free_Mem_IO) ,COP(Memory_Temp[11],Memory_Data.Total_Mem_IO,1) MUL(Memory_Data.Total_Mem_IO,4,Memory_Data.Total_Mem_IO) ,COP(Memory_Temp[13],Memory_Data.Total_Mem_DT,1) MUL(Memory_Data.Total_Mem_DT,4,Memory_Data.Total_Mem_DT) ,COP(Memory_Temp[15],Memory_Data.Total_Mem_Gen,1) MUL(Memory_Data.Total_Mem_Gen,4,Memory_Data.Total_Mem_Gen) ,CPT(Memory_Data.Total_Memory,Memory_Data.Total_Mem_Gen+Memory_Data.Total_Mem_DT+Memory_Data.Total_Mem_IO) ,COP(Memory_Temp[19],Memory_Data.Biggest_Gen_Mem_Size_Ava,1) MUL(Memory_Data.Biggest_Gen_Mem_Size_Ava,4,Memory_Data.Biggest_Gen_Mem_Size_Ava) ,COP(Memory_Temp[23],Memory_Data.Biggest_IO_Mem_Size_Ava,1) MUL(Memory_Data.Biggest_IO_Mem_Size_Ava,4,Memory_Data.Biggest_IO_Mem_Size_Ava) ,COP(Memory_Temp[27],Memory_Data.Biggest_DT_Mem_Size_Ava,1) MUL(Memory_Data.Biggest_DT_Mem_Size_Ava,4,Memory_Data.Biggest_DT_Mem_Size_Ava) ];]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Comment>
+<![CDATA[Convert the Total Memory and Free Memory in Real format]]>
+</Comment>
+<Text>
+<![CDATA[[MOV(Memory_Data.Total_Mem_DT,Memory_Data.Total_Mem_DT_Real) ,MOV(Memory_Data.Free_Mem_DT,Memory_Data.Free_Mem_DT_Real) ];]]>
+</Text>
+</Rung>
+<Rung Number="3" Type="N">
+<Comment>
+<![CDATA[Calculation of Used Memeory and Percentage Used Memory]]>
+</Comment>
+<Text>
+<![CDATA[[SUB(Memory_Data.Total_Mem_DT_Real,Memory_Data.Free_Mem_DT_Real,Memory_Data.Used_Mem_DT_Real) ,CPT(Memory_Data.Percentage_Used_DT,Memory_Data.Used_Mem_DT_Real/Memory_Data.Total_Mem_DT_Real*100) ];]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+</Controller>
+</RSLogix5000Content>

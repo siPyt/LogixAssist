@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--Scale Routine-->
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="21.00" TargetName="Scale" TargetType="Routine" TargetSubType="FBD" ContainsContext="true" Owner="Cherokee_GMP_Maintenance@outlook.com" ExportDate="Thu Jul 23 14:07:30 2026" ExportOptions="References DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Context" Name="DSP090002">
+<DataTypes Use="Context">
+</DataTypes>
+<Programs Use="Context">
+<Program Use="Context" Name="MainProgram">
+<Tags Use="Context">
+<Tag Name="SCL" TagType="Base" DataType="SCALE" Constant="false" ExternalAccess="Read/Write">
+<Data>01 00 00 00 00 00 00 00 00 FE FF 46 00 C8 CC 45 
+00 00 70 42 00 00 00 00 05 00 00 00 50 FB 6F C1 
+00 00 00 00 00 00 00 00 00 CC CC 46 A0 00 20 38 
+50 FB 6F C1</Data>
+<Data Format="Decorated">
+<Structure DataType="SCALE">
+<DataValueMember Name="EnableIn" DataType="BOOL" Value="1"/>
+<DataValueMember Name="In" DataType="REAL" Radix="Float" Value="0.0"/>
+<DataValueMember Name="InRawMax" DataType="REAL" Radix="Float" Value="32767.0"/>
+<DataValueMember Name="InRawMin" DataType="REAL" Radix="Float" Value="6553.0"/>
+<DataValueMember Name="InEUMax" DataType="REAL" Radix="Float" Value="60.0"/>
+<DataValueMember Name="InEUMin" DataType="REAL" Radix="Float" Value="0.0"/>
+<DataValueMember Name="Limiting" DataType="BOOL" Value="0"/>
+<DataValueMember Name="EnableOut" DataType="BOOL" Value="1"/>
+<DataValueMember Name="Out" DataType="REAL" Radix="Float" Value="-14.998856"/>
+<DataValueMember Name="MaxAlarm" DataType="BOOL" Value="0"/>
+<DataValueMember Name="MinAlarm" DataType="BOOL" Value="1"/>
+<DataValueMember Name="Status" DataType="DINT" Radix="Hex" Value="16#0000_0000"/>
+<DataValueMember Name="InstructFault" DataType="BOOL" Value="0"/>
+<DataValueMember Name="InRawRangeInv" DataType="BOOL" Value="0"/>
+</Structure>
+</Data>
+</Tag>
+</Tags>
+<Routines Use="Context">
+<Routine Use="Target" Name="Scale" Type="FBD">
+<Description>
+<![CDATA[Scale Routine]]>
+</Description>
+<FBDContent SheetSize="Letter - 8.5 x 11 in" SheetOrientation="Landscape">
+<Sheet Number="1">
+<Block Type="SCL" ID="0" X="120" Y="80" Operand="SCL" VisiblePins="In InRawMax InRawMin InEUMax InEUMin Out" HideDesc="false"/>
+</Sheet>
+</FBDContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+</Controller>
+</RSLogix5000Content>

@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.04" TargetName="MainRoutine" TargetType="Routine" TargetSubType="RLL" ContainsContext="true" Owner="Cherokee_GMP_Maintenance@outlook.com" ExportDate="Thu Jul 23 14:24:21 2026" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans LogicalHierarchy">
+<Controller Use="Context" Name="TFF">
+<Programs Use="Context">
+<Program Use="Context" Name="MainProgram">
+<Routines Use="Context">
+<Routine Use="Target" Name="MainRoutine" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[==========================================================================================================================================================
+                                                                                                           Main Routine : Call subroutine in a specific order 
+
+                                                    List of treatments handled by the routine :
+                                                         - PC Date and Time Synchronization
+                                                         - System Timers
+                                                         - System Totalizers
+                                                          - Controler Memory informatons
+                                                    -----------------------------------------------------------------------------------------------------------------------------------------------------
+                                                    History 
+		2019-DEC-24 - Merck - Q. Spindler - Initial version for Candidate Release 1.00.00.00.a
+		2021-NOV-17 - Merck - Q.Spindler - Modifications for Candidate Release 1.01.00.00.a
+- Add Memory_Information Call
+==========================================================================================================================================================]]>
+</Comment>
+<Text>
+<![CDATA[NOP();]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Comment>
+<![CDATA[PC Date and Time Synchronization
+==========================================================================================================================================================
+Jump to subroutine.]]>
+</Comment>
+<Text>
+<![CDATA[JSR(PCDateTime,0);]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Comment>
+<![CDATA[System Timers
+==========================================================================================================================================================
+Jump to subroutine.]]>
+</Comment>
+<Text>
+<![CDATA[JSR(Time,0);]]>
+</Text>
+</Rung>
+<Rung Number="3" Type="N">
+<Comment>
+<![CDATA[System Totalizers
+==========================================================================================================================================================
+Jump to subroutine.]]>
+</Comment>
+<Text>
+<![CDATA[JSR(Total,0);]]>
+</Text>
+</Rung>
+<Rung Number="4" Type="N">
+<Comment>
+<![CDATA[Controler Memory informatons
+==========================================================================================================================================================
+Jump to subroutine.]]>
+</Comment>
+<Text>
+<![CDATA[JSR(Memory_Informations,0);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+<Routine Use="Reference" Name="Memory_Informations">
+</Routine>
+<Routine Use="Reference" Name="PCDateTime">
+</Routine>
+<Routine Use="Reference" Name="Time">
+</Routine>
+<Routine Use="Reference" Name="Total">
+</Routine>
+</Routines>
+</Program>
+</Programs>
+</Controller>
+</RSLogix5000Content>

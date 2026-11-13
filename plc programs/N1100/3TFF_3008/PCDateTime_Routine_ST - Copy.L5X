@@ -1,0 +1,174 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.04" TargetName="PCDateTime" TargetType="Routine" TargetSubType="ST" ContainsContext="true" Owner="Cherokee_GMP_Maintenance@outlook.com" ExportDate="Thu Jul 23 14:25:15 2026" ExportOptions="References NoRawData L5KData DecoratedData Context Dependencies ForceProtectedEncoding AllProjDocTrans LogicalHierarchy">
+<Controller Use="Context" Name="TFF">
+<DataTypes Use="Context">
+</DataTypes>
+<Tags Use="Context">
+<Tag Name="PCDateTime" TagType="Base" DataType="DINT" Dimensions="7" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Date/Time Array from PC]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[[2025,10,3,11,41,1,-1]]]>
+</Data>
+<Data Format="Decorated">
+<Array DataType="DINT" Dimensions="7" Radix="Decimal">
+<Element Index="[0]" Value="2025"/>
+<Element Index="[1]" Value="10"/>
+<Element Index="[2]" Value="3"/>
+<Element Index="[3]" Value="11"/>
+<Element Index="[4]" Value="41"/>
+<Element Index="[5]" Value="1"/>
+<Element Index="[6]" Value="-1"/>
+</Array>
+</Data>
+</Tag>
+</Tags>
+<Programs Use="Context">
+<Program Use="Context" Name="MainProgram">
+<Tags Use="Context">
+<Tag Name="PLCDST" TagType="Base" DataType="SINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Current PLC Day Light Saving]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[0]]>
+</Data>
+<Data Format="Decorated">
+<DataValue DataType="SINT" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="PLCTimeZoneString" TagType="Base" DataType="STRING" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Current PLC TimeZone]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[[36,'UTC+00:00 Coordinated Universal Time$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]>
+</Data>
+<Data Format="String" Length="36">
+<![CDATA['UTC+00:00 Coordinated Universal Time']]>
+</Data>
+</Tag>
+<Tag Name="TimeZoneUTC0" TagType="Base" DataType="STRING" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[String value for Time zone UTC 0]]>
+</Description>
+<Data Format="L5K">
+<![CDATA[[36,'UTC+00:00 Coordinated Universal Time$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00$00'
+		]]]>
+</Data>
+<Data Format="String" Length="36">
+<![CDATA['UTC+00:00 Coordinated Universal Time']]>
+</Data>
+</Tag>
+</Tags>
+<Routines Use="Context">
+<Routine Use="Target" Name="PCDateTime" Type="ST">
+<STContent>
+<Line Number="0">
+<![CDATA[(* =======================================================================]]>
+</Line>
+<Line Number="1">
+<![CDATA[	PCDateTime : Synchronize the PLC with PC clock]]>
+</Line>
+<Line Number="2">
+<![CDATA[]]>
+</Line>
+<Line Number="3">
+<![CDATA[	List of treatments]]>
+</Line>
+<Line Number="4">
+<![CDATA[		- Synchronization]]>
+</Line>
+<Line Number="5">
+<![CDATA[]]>
+</Line>
+<Line Number="6">
+<![CDATA[-----------------------------------------------------------------------------------------------------------------------------------------------------]]>
+</Line>
+<Line Number="7">
+<![CDATA[	History]]>
+</Line>
+<Line Number="8">
+<![CDATA[		2019-DEC-24 - Merck - Q. Spindler - Initial version for Candidate Release 1.00.00.00.a]]>
+</Line>
+<Line Number="9">
+<![CDATA[=========================================================================*)]]>
+</Line>
+<Line Number="10">
+<![CDATA[]]>
+</Line>
+<Line Number="11">
+<![CDATA[]]>
+</Line>
+<Line Number="12">
+<![CDATA[(* Synchronization]]>
+</Line>
+<Line Number="13">
+<![CDATA[=========================================================================*)]]>
+</Line>
+<Line Number="14">
+<![CDATA[(*Update the internal PLC clock with the PC clock when the microseconds value is not -1*)]]>
+</Line>
+<Line Number="15">
+<![CDATA[IF PCDateTime[6] <> -1 THEN;]]>
+</Line>
+<Line Number="16">
+<![CDATA[	SSV (WALLCLOCKTIME, , DateTime, PCDateTime[0]);]]>
+</Line>
+<Line Number="17">
+<![CDATA[	PCDateTime[6] := -1;]]>
+</Line>
+<Line Number="18">
+<![CDATA[END_IF;]]>
+</Line>
+<Line Number="19">
+<![CDATA[]]>
+</Line>
+<Line Number="20">
+<![CDATA[(*Get PLC DST settings and set it to 0 of not already*)]]>
+</Line>
+<Line Number="21">
+<![CDATA[GSV (WALLCLOCKTIME, ,ApplyDST , PLCDST);]]>
+</Line>
+<Line Number="22">
+<![CDATA[IF PLCDST <> 0 THEN;]]>
+</Line>
+<Line Number="23">
+<![CDATA[	PLCDST := 0;]]>
+</Line>
+<Line Number="24">
+<![CDATA[	SSV (WALLCLOCKTIME, ,ApplyDST , PLCDST);]]>
+</Line>
+<Line Number="25">
+<![CDATA[END_IF;]]>
+</Line>
+<Line Number="26">
+<![CDATA[]]>
+</Line>
+<Line Number="27">
+<![CDATA[(*Get PLC TimeZone and set it to UTC0 of not already*)]]>
+</Line>
+<Line Number="28">
+<![CDATA[GSV (WALLCLOCKTIME, ,TimeZoneString, PLCTimeZoneString);]]>
+</Line>
+<Line Number="29">
+<![CDATA[IF PLCTimeZoneString <> TimeZoneUTC0 THEN;]]>
+</Line>
+<Line Number="30">
+<![CDATA[	SSV (WALLCLOCKTIME, ,TimeZoneString , TimeZoneUTC0);]]>
+</Line>
+<Line Number="31">
+<![CDATA[END_IF;]]>
+</Line>
+<Line Number="32">
+<![CDATA[]]>
+</Line>
+</STContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+</Controller>
+</RSLogix5000Content>

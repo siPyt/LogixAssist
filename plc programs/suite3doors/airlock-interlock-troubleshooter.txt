@@ -1,0 +1,35 @@
+airlock-interlock-troubleshooter
+Troubleshoot pharmaceutical airlock door interlocking, door position switch (DPS) faults, and Studio 5000 / RSLogix 5000 ladder logic diagnostics. Use when diagnosing doors failing to unlock, mutual exclusion lockouts, emergency release latches, or discrete I/O sensor failures.
+
+Instructions
+Airlock Interlock Troubleshooter
+Diagnostic workflow for troubleshooting cleanroom airlock interlock sequences, door position feedback faults, and unlock logic in Rockwell Automation Studio 5000 / RSLogix 5000.
+
+When to Use
+Cleanroom airlock doors will not release, unlock, or drop magnetic locks.
+Diagnosing mutual exclusion door logic, door-ajar timer lockouts, or emergency release latches.
+Tracing discrete 1769-DI / 1769-DO I/O module signals and field power loops.
+Diagnostic Steps
+1. Verify Master Permissives and Latches
+Check the global safety/master interlock permissive (e.g., Local:10:I.Data.15). If 0, all door strike rungs are broken.
+Check airlock lockout latches (*_Airlock_Latch):
+A timeout (>30 s door-ajar timer) or dual-door breach sets this latch via OTL.
+Cleared only by pulsing the global reset input (Local:8:I.Data.15).
+Check emergency release latches (*_Emergency_Release_Latch).
+2. Inspect Door Position Switch (DPS) Feedback
+Locate the input word for the airlock zone (e.g., Local:9:I.Data).
+Determine switch polarity:
+If unlock rungs use XIO(DPS_Bit), the logic expects 0 for closed and 1 for open.
+If all bits read 1, the controller evaluates all doors as wide open and inhibits every unlock output.
+If multiple doors in the same zone read open simultaneously while physically shut:
+Check shared +24 VDC sensor power distribution.
+Check common return wire in the local cleanroom junction box.
+Check field terminal block fuses.
+3. Trace Unlock Output Continuity
+Trace output coils on the DO card (e.g., Local:3:O.Data.x).
+Verify whether the controller is in Run mode and the routine's JSR is executing in MainRoutine.
+Measure 24 VDC directly across the output module's VDC and DC Common terminals to rule out a tripped output bus fuse.
+Verification Checklist
+Multimeter check: Verify 24 VDC on field input terminals with doors latched.
+Field test: Physically crack each door and confirm its dedicated bit transitions in the tag monitor.
+Reset test: Momentarily pulse reset input to unlatch lockout and annunciator bits.
