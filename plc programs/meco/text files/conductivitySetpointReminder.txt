@@ -1,0 +1,84 @@
+MECO9497 - CONDUCTIVITY SETPOINT "NOT AT 1.00" REMINDER
+Status: PROPOSED - not implemented. Verify tag names/types in the live ACD and go
+through change control before editing.
+
+PURPOSE
+- If the conductivity setpoint is changed from 1.00, show a message on the HMI.
+- The message stays on until the setpoint is back at 1.00.
+- It is a reminder only: it does NOT stop the still, does NOT touch MCB, the
+  DSTLT_STORAGE logic, the horn, or any DeltaV bit.
+- No acknowledge or reset. Only putting the setpoint back clears it.
+
+TAG ASSUMPTION (confirm first)
+- AAH_200_SP is the conductivity setpoint used by AAH_200 (AAH_200 = 1 when
+  conductivity is at or below the setpoint). Check the data type (REAL assumed),
+  where the HMI writes it (SETPOINTS routine / an _OIT tag), and the units.
+  If the HMI writes a different tag that is copied into AAH_200_SP, test the
+  tag that the alarm logic actually uses (AAH_200_SP).
+
+NEW TAGS
+  COND_SP_NOMINAL      REAL  1.00    "Normal conductivity setpoint"
+  COND_SP_TOL          REAL  0.005   "Tolerance for 'at nominal' (avoids REAL compare issues)"
+  MSG_COND_SP_CHANGED  BOOL          "Conductivity setpoint is not 1.00 (1 = reminder active)"
+
+  COND_SP_NOMINAL is a tag (not a hard-coded 1.00) so a future approved change
+  of the normal value does not need a logic edit. Do not map it to the HMI as an
+  editable value, or the reminder can be defeated by changing the reference.
+
+LADDER (new rung in the ALARMS or OIT routine; one rung is enough)
+
+  Rung 0  "Conductivity setpoint not at nominal"
+    XIO  [CMP  ABS(AAH_200_SP - COND_SP_NOMINAL) <= COND_SP_TOL]
+         -> OTE MSG_COND_SP_CHANGED
+
+  The test is written as "NOT within tolerance" so that an invalid REAL (NaN)
+  also raises the reminder instead of silently passing.
+
+STRUCTURED TEXT EQUIVALENT
+  MSG_COND_SP_CHANGED := NOT (ABS(AAH_200_SP - COND_SP_NOMINAL) <= COND_SP_TOL);
+
+BEHAVIOR
+  - Setpoint = 1.00 (within 0.005): MSG_COND_SP_CHANGED = 0, no message.
+  - Setpoint changed to any other value (higher or lower): bit = 1, message on.
+  - Setpoint returned to 1.00: bit = 0, message clears by itself.
+  - It is re-evaluated every scan, so it comes back after a PLC power cycle or
+    download if the setpoint is still wrong. No retentive/latched state needed.
+  - Do NOT add it to AUDIBLE_SUMMARY (ALARMS rung 40) and do not tie it to
+    ACKNOWLEDGE / RESET. A horn or an ACK that hides it would defeat the reminder.
+  - Do NOT add it to MSS_SHUTDOWN, MSS_ALERT or any run/permissive rung.
+
+HMI MAPPING (check in the HMI application, MECO9497.mer)
+  - Same polarity as the other MSG_ tags (1 = message active).
+  - Message text: "Conductivity setpoint is not 1.00 - set it back to 1.00".
+  - Show it where operators will see it. Two options, can use both:
+      a) An alarm/message-list entry triggered by MSG_COND_SP_CHANGED = 1.
+         Make sure acknowledging it on the HMI does not remove it while the bit
+         is still 1 (so it keeps showing until the point is fixed).
+      b) A banner/indicator on the main screen visible when the bit = 1, with the
+         current AAH_200_SP value displayed beside it.
+  - Keep it separate from the screen-99 comm-loss behavior (OIT rungs 21/25/26);
+    the reminder should not force a screen change.
+
+OPTIONAL: TELL DELTAV
+  A spare DELTA_V_READ bit (the notes list [3].14 / [3].15 as spares) could carry
+  the same flag so DeltaV also shows it. Only do this if DeltaV engineering wants
+  it; it is not needed for the HMI reminder and it changes the DeltaV interface.
+
+THINGS TO KNOW
+  - This will be on during any deliberate setpoint test (e.g. the 11/06/2026 test
+    that lowered the conductivity setpoint to force a real high-conductivity
+    alarm). That is intended: it reminds you to restore 1.00 afterward.
+  - It does not detect other ways the alarm could be defeated (e.g. a changed
+    delay time). Only the setpoint is checked.
+  - The setpoint is still adjustable. This only reminds; it does not lock it.
+
+TEST
+  1. Setpoint at 1.00: no message.
+  2. Change the setpoint to 0.80, then to 1.20: message appears and stays on,
+     acknowledging on the HMI does not remove it, still runs normally, MCB and
+     DELTA_V_READ[0].0 / [0].7 unaffected.
+  3. Return to 1.00: message clears by itself.
+  4. Set to 1.004 (inside tolerance): no message. Set to 1.01: message.
+  5. With the message active, cycle PLC power / go online after download: message
+     is still active.
+  6. Confirm no horn, no change in AUDIBLE_SUMMARY, no OIT screen change.
