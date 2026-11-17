@@ -198,6 +198,14 @@ Stage B - changes comm-loss behavior
   The stuck-low trip can only be tested with DV_HB_LOW_EN = 1 - include it in
   the OQ plan (tests T3-T7, T9 in upgrades.txt) and record the final state of
   DV_HB_LOW_EN and the presets.
+  How to see a stuck-LOW heartbeat (HEARTBEAT = 0 and not changing):
+    DV_HB_LOW_EN = 0: no operator / DeltaV indication; online only -
+      DV_HB_LOW_OUT.ACC climbing, DV_HB_LOW_OUT.DN at 6 s, DV_HB_LOW_LOSS.DN
+      at 11 s, and a large DV_HB_LOW_PEAK.
+    DV_HB_LOW_EN = 1: DELTA_V_READ[0].5 = 1 after 6 s (DeltaV told);
+      HEARTBEAT_AUX = 1 after 11 s -> MCB drops (Manual and Auto) and OIT
+      screen 99. The PLC cannot tell "DeltaV holds the heartbeat at 0" from
+      "comm lost"; both are treated as the same fault.
   Decision 11/17/2026: keep the DV_HB_LOW_EN enable bit rather than an AFI in
   the rung. Turning the feature on is then a value change (write 1), not a
   logic edit; it can be switched off again instantly if DeltaV nuisance-trips;
