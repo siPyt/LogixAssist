@@ -17,8 +17,11 @@ Working file
     11/17/2026 10:04 AM.
   - Original was V21.00.04; Logix made MECO11NOV2026.ACD_V21 as the backup
     when it was converted. Keep that backup until the change is approved.
-  - The file in this repo (plc programs\meco\MECO9497.ACD) does NOT contain
-    this change.
+  - Repo copy of this file: plc programs\meco\MECO11NOV2026.ACD (copied
+    11/17/2026 11:53 AM from the working file saved 11:51 AM; includes the
+    conductivity reminder and Stage A). Re-copy after further edits.
+  - The older repo file plc programs\meco\MECO9497.ACD does NOT contain
+    this change (it is only a 21.03 conversion of the original).
 
 New controller tags (controller scope)
   COND_SP_NOMINAL      REAL  1.0    Read Only   "Normal conductivity setpoint"
