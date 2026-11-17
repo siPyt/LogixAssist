@@ -85,14 +85,21 @@ STILL TO DO
 **************************************************************************
 DELTAV COMMUNICATION MONITORING (upgrades.txt U1 + U2) - IN PROGRESS
 **************************************************************************
-Decisions made 11/17/2026 (user, on recommendation) - still need operations /
-process owner sign-off before anything is downloaded:
-  D1 = (b)  DeltaV comm loss only removes the DeltaV run request. Manual and
-            hardwired remote start keep working with DeltaV down. XIO
-            HEARTBEAT_AUX comes OUT of MSS_CONTROL rung 0.
-  D2 = require a NEW run command after comm returns (no automatic restart).
-  D3 = open: nothing in the PLC writes D_V_REMOTE_START. If DeltaV writes it
-       directly it must be gated too (it is - see INPUT_MAP rung 35 below).
+Decisions (user, 11/17/2026) - sign-off from operations / process owner is
+still needed before anything is downloaded:
+  D1 = (a)  KEEP TODAY'S CONFIGURATION. HEARTBEAT_AUX stays in series with
+            both the Manual and Auto paths in MSS_CONTROL rung 0, so any
+            DeltaV comm loss drops MCB in all modes. MSS_CONTROL, DELTA_V
+            rung 9 and INPUT_MAP rung 35 are NOT changed.
+            (Option (b) - only remove the DeltaV run request - was
+            considered and rejected 11/17/2026.)
+  D2 = unchanged from today: if comm returns while DeltaV's run request is
+       still 1 and MSS_START_PERM is true, the unit in Auto restarts on its
+       own. Not addressed by this work.
+  D3 = open: nothing in the PLC writes D_V_REMOTE_START. Not addressed.
+Consequence of (a) + U1: once stuck-LOW is detected, a DeltaV outage (or a PLC
+power-up with DeltaV not yet talking) trips HEARTBEAT_AUX after about 11 s and
+stops the unit in Manual too. Today a heartbeat stuck low does not.
 Open facts: DeltaV heartbeat period unknown; DeltaV engineer must confirm it
 reads DELTA_V_READ[1] (U2).
 
@@ -105,16 +112,10 @@ Stage A - no effect on the plant (download first, then watch the timers)
   the heartbeat at 0. It must stay well under 6000.
 
 Stage B - changes comm-loss behavior (only after Stage A data + sign-off)
-  New tag: DV_RUN_LOCKOUT (BOOL).
   DELTA_V rung 3: [XIC TIMER_OUT.DN OR XIC DV_HB_LOW_OUT.DN] -> DELTA_V_READ[0].5
   DELTA_V rung 4: [XIC LOSS_COM_DISPLAY.DN OR XIC DV_HB_LOW_LOSS.DN] -> HEARTBEAT_AUX
-  New lockout rung (DELTA_V): [XIC HEARTBEAT_AUX OR (XIC DV_RUN_LOCKOUT AND
-    [XIC D_V_REMOTE_START OR XIC DELTA_V_WRITE[0].1])] -> OTE DV_RUN_LOCKOUT
-  DELTA_V rung 9: add XIO DV_RUN_LOCKOUT in series before D_V_REMOTE_START_MAP.
-  INPUT_MAP rung 35: add XIO DV_RUN_LOCKOUT in series with the D_V_REMOTE_START
-    branch only (the hardwired UNIT_REMOTE_START_DI branch is NOT gated).
-  MSS_CONTROL rung 0: delete the XIO HEARTBEAT_AUX contact.
-  Not changed: OIT rungs 21 / 25 / 26 (screen 99 behavior stays).
+  Not changed: MSS_CONTROL, OIT rungs 21 / 25 / 26, INPUT_MAP, DELTA_V rung 9.
+  No DV_RUN_LOCKOUT tag is needed.
 
 **************************************************************************
 OTHER PROPOSED CHANGES - NOT IMPLEMENTED
