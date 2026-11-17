@@ -1,0 +1,55 @@
+LOGIX DESIGNER RUNG TEXT (ASCII) NOTES - MECO9497
+Notes on typing / pasting rungs as text in Logix Designer 21.03.
+Only things seen working in this project are listed as VERIFIED.
+
+
+HOW TO ENTER A RUNG AS TEXT
+  1. Add a new rung (or pick an existing one).
+  2. Double-click the BLUE RUNG NUMBER at the far left of the rung.
+  3. Ctrl+A in the text box, Delete, paste the rung text, press Enter.
+  Pasting into an instruction box instead of the rung-number box creates an
+  "Unknown Instruction (UNK)" - delete it and use the rung number box.
+
+
+BRANCHES - VERIFIED (user's rung 3 in DELTA_V, 11/17/2026)
+  A branch is written  BST <top path> NXB <bottom path> BND  followed by
+  whatever comes after the branch. Operands are separated by spaces.
+
+  Rung 3 as Logix shows it after building it:
+    BST XIC TIMER_OUT.DN NXB XIC DV_HB_LOW_OUT.DN XIC DV_HB_LOW_EN BND OTE DELTA_V_READ[0].5
+
+  Pattern:
+    BST XIC <a> NXB XIC <b> XIC <c> BND OTE <d>
+      = (a) OR (b AND c)  -> d
+
+  NOT valid in this version:  [XIC(a),XIC(b)XIC(c)]OTE(d);
+  (square-bracket / comma branches do not work).
+
+
+SIMPLE INSTRUCTIONS - VERIFIED
+  XIO(COND_SP_OK)OTE(MSG_COND_SP_CHANGED);   (OIT rung 48 built from this text)
+  Instruction names with a tag in parentheses, or with spaces, both work for
+  XIC / XIO / OTE. Always look at the rung after pasting.
+
+
+INSTRUCTIONS WITH AN EXPRESSION - VERIFIED PROBLEM
+  CMP and CPT take everything after the instruction name as the expression.
+  This text:
+    CMP(ABS(AAH_200_SP-COND_SP_NOMINAL)<=COND_SP_TOL)OTE(COND_SP_OK);
+  produced a CMP whose expression was
+    (ABS(AAH_200_SP-COND_SP_NOMINAL)<=COND_SP_TOL)OTE(COND_SP_OK)
+  and no OTE.
+  Do this instead: paste the contacts / outputs as text, add the CMP or CPT
+  from the Compare / Compute-Math toolbar tab, and type the expression there
+  (OIT rung 47, DELTA_V rung 28).
+
+
+NOT TESTED HERE (check the result on screen before trusting it)
+  TON / GRT / GEQ / MOV typed as text, e.g. TON(timer,?,?) or
+  GRT(a,b)MOV(a,b). If the rung does not look right, build it from the
+  toolbar.
+
+
+AFTER ANY EDIT
+  Accept pending edits, Verify Routine, check the cross reference of any new
+  tag, save. See changeLog.txt for what was changed in this program.

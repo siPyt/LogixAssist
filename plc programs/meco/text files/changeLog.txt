@@ -142,7 +142,8 @@ Stage A - no effect on the plant (download first, then watch the timers)
   Rung text note: in this Logix version a CMP / CPT typed as neutral text
   swallows everything after the instruction name as its expression. Enter
   the contacts as text and add CMP / CPT from the toolbar. GEQ / GRT / MOV
-  as neutral text are fine. Branches in rung text are BST ... NXB ... BND.
+  as neutral text are untested. Branches in rung text are BST ... NXB ... BND
+  (see logixRungTextNotes.txt).
   TO DO for Stage A:
     [x] PLC_HB_TMR.PRE set to 5000 (counter step about every 5 s).
     [ ] Accept edits, Verify Routine on DELTA_V, save (new revision name).
