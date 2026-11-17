@@ -142,7 +142,7 @@ Stage A - no effect on the plant (download first, then watch the timers)
   Rung text note: in this Logix version a CMP / CPT typed as neutral text
   swallows everything after the instruction name as its expression. Enter
   the contacts as text and add CMP / CPT from the toolbar. GEQ / GRT / MOV
-  as neutral text are fine.
+  as neutral text are fine. Branches in rung text are BST ... NXB ... BND.
   TO DO for Stage A:
     [x] PLC_HB_TMR.PRE set to 5000 (counter step about every 5 s).
     [ ] Accept edits, Verify Routine on DELTA_V, save (new revision name).
@@ -162,7 +162,11 @@ Stage B - changes comm-loss behavior
   download, so Stage B is built NOW, but gated by a commissioning enable bit
   so it does nothing until the Stage A data (DV_HB_LOW_PEAK) is in. Only the
   timer presets and the enable bit are adjusted afterwards.
-  STATUS: PLANNED - not yet built in the file.
+  STATUS: rung 3 BUILT offline by user 11/17/2026 12:47. Rung 4 still to do.
+  Rung text as it appears in Logix (this is the correct ASCII; branches use
+  BST / NXB / BND, NOT [ , ]):
+    Rung 3: BST XIC TIMER_OUT.DN NXB XIC DV_HB_LOW_OUT.DN XIC DV_HB_LOW_EN BND OTE DELTA_V_READ[0].5
+    Rung 4: BST XIC LOSS_COM_DISPLAY.DN NXB XIC DV_HB_LOW_LOSS.DN XIC DV_HB_LOW_EN BND OTE HEARTBEAT_AUX
   New tag: DV_HB_LOW_EN  BOOL  0  "Enable DeltaV heartbeat stuck-low trip (1 = enabled)"
   DELTA_V rung 3: [XIC TIMER_OUT.DN OR (XIC DV_HB_LOW_OUT.DN AND XIC DV_HB_LOW_EN)]
                   -> DELTA_V_READ[0].5
