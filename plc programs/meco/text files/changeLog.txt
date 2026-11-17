@@ -1,0 +1,86 @@
+MECO9497 - PROGRAM CHANGE LOG
+Running log of edits made to the PLC program. Newest entry first.
+Nothing listed here is downloaded to the controller unless the entry says so.
+
+
+**************************************************************************
+2026-11-17  CONDUCTIVITY SETPOINT "NOT AT 1.00" REMINDER
+Status: EDITED OFFLINE ONLY - not downloaded, not yet tested on the unit.
+Spec:   proposals\conductivitySetpointReminder.txt (two-rung version below
+        replaces the single-rung ladder in that file - see "Deviation").
+**************************************************************************
+
+Working file
+  C:\Users\Chero\Desktop\programming\meco\MECO11NOV2026.ACD
+  - Saved by Logix Designer 21.03 (file log: V21.03.02). Last save
+    11/17/2026 10:04 AM.
+  - Original was V21.00.04; Logix made MECO11NOV2026.ACD_V21 as the backup
+    when it was converted. Keep that backup until the change is approved.
+  - The file in this repo (plc programs\meco\MECO9497.ACD) does NOT contain
+    this change.
+
+New controller tags (controller scope)
+  COND_SP_NOMINAL      REAL  1.0    Read Only   "Normal conductivity setpoint"
+  COND_SP_TOL          REAL  0.005  Read Only   "Tolerance for 'at nominal'"
+  COND_SP_OK           BOOL  0      Read/Write  "Conductivity setpoint at nominal (1= OK)"
+  MSG_COND_SP_CHANGED  BOOL  0      Read/Write  "Conductivity setpoint is not 1.00 (1= reminder active)"
+
+New rungs - MainProgram > OIT, added at the end after rung 46 (above (End)),
+so existing OIT rung numbers (21, 25, 26 etc.) did not move.
+
+  Rung 47:  CMP  ABS(AAH_200_SP-COND_SP_NOMINAL)<=COND_SP_TOL   -> OTE COND_SP_OK
+  Rung 48:  XIO COND_SP_OK                                      -> OTE MSG_COND_SP_CHANGED
+
+  Neutral text (rung number box > double-click > paste):
+    CMP(ABS(AAH_200_SP-COND_SP_NOMINAL)<=COND_SP_TOL)OTE(COND_SP_OK);
+    XIO(COND_SP_OK)OTE(MSG_COND_SP_CHANGED);
+
+How it behaves
+  - AAH_200_SP is the setpoint the alarm uses (INPUT_MAP rung 22:
+    AT_200_EU <= AAH_200_SP). The HMI value AAH_200_SP_O is copied into it
+    by SETPOINTS rung 16.
+  - Setpoint within 0.005 of 1.00: COND_SP_OK = 1, message off.
+  - Any other value, or an invalid REAL (NaN): COND_SP_OK = 0, message on.
+  - Re-evaluated every scan, so it comes back after a power cycle or
+    download if the setpoint is still wrong. No latch, no acknowledge.
+  - Reminder only. It does not touch MCB, MSS_SHUTDOWN, MSS_ALERT, the
+    horn / AUDIBLE_SUMMARY, DSTLT_STORAGE, ACKNOWLEDGE / RESET, or any
+    DeltaV bit.
+
+Deviation from the proposal text
+  The proposal showed "XIO [CMP ...] -> OTE MSG_COND_SP_CHANGED". Logix cannot
+  invert a CMP, so a helper bit (COND_SP_OK) was added and the message is
+  driven from XIO COND_SP_OK. This also makes an invalid (NaN) setpoint raise
+  the reminder, because the compare is false for NaN.
+
+STILL TO DO
+  [ ] Verify Routine on OIT - no errors.
+  [ ] Cross reference MSG_COND_SP_CHANGED - one OTE in OIT, nothing else.
+  [ ] Check AAH_200_SP in the program before download. The 10/15/2026 report
+      showed 0.6, not 1.00. If it is not 1.00 the message turns on right
+      after download (correct behavior, but be ready for it).
+  [ ] Add the rung comment on rung 47:
+      "Reminder only - conductivity setpoint is not 1.00. Does not affect
+       MCB, alarms, horn or DeltaV."
+  [ ] HMI (MECO9497.mer, FactoryTalk View Studio ME): banner / indicator on
+      MSG_COND_SP_CHANGED = 1, text "Conductivity setpoint is not 1.00 - set
+      it back to 1.00", show AAH_200_SP beside it. Acknowledging on the HMI
+      must not hide it. Do not force a screen change (screen 99 is comm loss).
+  [ ] Save under a new revision name; change control before any download.
+  [ ] Test after download:
+        1. Setpoint 1.00 - no message.
+        2. Set 0.80, then 1.20 - message on and stays on; HMI acknowledge does
+           not clear it; unit runs normally; MCB and DELTA_V_READ[0].0 / [0].7
+           unchanged.
+        3. Back to 1.00 - message clears by itself.
+        4. 1.004 - no message; 1.01 - message.
+        5. Power cycle / go online after download with a wrong setpoint -
+           message is still on.
+        6. No horn, no change in AUDIBLE_SUMMARY, no OIT screen change.
+
+
+**************************************************************************
+OTHER PROPOSED CHANGES - NOT IMPLEMENTED
+**************************************************************************
+  DeltaV communication monitoring upgrades U1-U5: see upgrades.txt.
+  Decisions D1-D3 in upgrades.txt are still open.
