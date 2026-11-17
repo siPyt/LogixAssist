@@ -5,7 +5,8 @@ Nothing listed here is downloaded to the controller unless the entry says so.
 
 **************************************************************************
 2026-11-17  CONDUCTIVITY SETPOINT "NOT AT 1.00" REMINDER
-Status: EDITED OFFLINE ONLY - not downloaded, not yet tested on the unit.
+Status: PLC LOGIC DONE (offline edit complete 11/17/2026).
+        HMI part still OPEN. Not downloaded, not yet tested on the unit.
 Spec:   proposals\conductivitySetpointReminder.txt (two-rung version below
         replaces the single-rung ladder in that file - see "Deviation").
 **************************************************************************
@@ -53,15 +54,17 @@ Deviation from the proposal text
   driven from XIO COND_SP_OK. This also makes an invalid (NaN) setpoint raise
   the reminder, because the compare is false for NaN.
 
+PLC LOGIC - DONE (reported complete by user 11/17/2026)
+  [x] Verify Routine on OIT - no errors.
+  [x] Cross reference MSG_COND_SP_CHANGED - one OTE in OIT, nothing else.
+  [x] Rung comment on rung 47:
+      "Reminder only - conductivity setpoint is not 1.00. Does not affect
+       MCB, alarms, horn or DeltaV."
+
 STILL TO DO
-  [ ] Verify Routine on OIT - no errors.
-  [ ] Cross reference MSG_COND_SP_CHANGED - one OTE in OIT, nothing else.
   [ ] Check AAH_200_SP in the program before download. The 10/15/2026 report
       showed 0.6, not 1.00. If it is not 1.00 the message turns on right
       after download (correct behavior, but be ready for it).
-  [ ] Add the rung comment on rung 47:
-      "Reminder only - conductivity setpoint is not 1.00. Does not affect
-       MCB, alarms, horn or DeltaV."
   [ ] HMI (MECO9497.mer, FactoryTalk View Studio ME): banner / indicator on
       MSG_COND_SP_CHANGED = 1, text "Conductivity setpoint is not 1.00 - set
       it back to 1.00", show AAH_200_SP beside it. Acknowledging on the HMI
