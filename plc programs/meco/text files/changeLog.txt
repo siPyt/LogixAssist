@@ -184,10 +184,24 @@ Stage B - changes comm-loss behavior
   After the peak data is in (needs change control + operations sign-off):
     [ ] Set DV_HB_LOW_OUT.PRE to at least 2x DV_HB_LOW_PEAK (normal peak,
         not an outage value), and DV_HB_LOW_LOSS.PRE = OUT + 5000.
+        Only these two presets change (Monitor Tags > expand the timer >
+        .PRE, online). Do NOT change TIMER_BIT / TIMER_OUT / LOSS_COM_DISPLAY
+        (the existing stuck-high timers). Keep LOSS longer than OUT so
+        DeltaV is told before the unit stops.
+        Examples (normal peak -> OUT / LOSS):
+          up to 3000 -> 6000 / 11000 (current values, no change needed)
+          5000       -> 10000 / 15000
+          8000       -> 16000 / 21000
     [ ] Set DV_HB_LOW_EN = 1.
+    [ ] Record the final DV_HB_LOW_OUT.PRE, DV_HB_LOW_LOSS.PRE and
+        DV_HB_LOW_EN values in this log.
   The stuck-low trip can only be tested with DV_HB_LOW_EN = 1 - include it in
   the OQ plan (tests T3-T7, T9 in upgrades.txt) and record the final state of
   DV_HB_LOW_EN and the presets.
+  Decision 11/17/2026: keep the DV_HB_LOW_EN enable bit rather than an AFI in
+  the rung. Turning the feature on is then a value change (write 1), not a
+  logic edit; it can be switched off again instantly if DeltaV nuisance-trips;
+  and the OQ can test the trip with the bit at 1 without changing the rung.
 
 **************************************************************************
 OTHER PROPOSED CHANGES - NOT IMPLEMENTED
