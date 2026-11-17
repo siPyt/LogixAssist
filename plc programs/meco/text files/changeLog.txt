@@ -157,11 +157,29 @@ Stage A - no effect on the plant (download first, then watch the timers)
         for their slowest refresh of this value (PRE should give each state
         >= 3x that).
 
-Stage B - changes comm-loss behavior (only after Stage A data + sign-off)
-  DELTA_V rung 3: [XIC TIMER_OUT.DN OR XIC DV_HB_LOW_OUT.DN] -> DELTA_V_READ[0].5
-  DELTA_V rung 4: [XIC LOSS_COM_DISPLAY.DN OR XIC DV_HB_LOW_LOSS.DN] -> HEARTBEAT_AUX
+Stage B - changes comm-loss behavior
+  PLAN CHANGED 11/17/2026: the build must be essentially final at the IQ/OQ
+  download, so Stage B is built NOW, but gated by a commissioning enable bit
+  so it does nothing until the Stage A data (DV_HB_LOW_PEAK) is in. Only the
+  timer presets and the enable bit are adjusted afterwards.
+  STATUS: PLANNED - not yet built in the file.
+  New tag: DV_HB_LOW_EN  BOOL  0  "Enable DeltaV heartbeat stuck-low trip (1 = enabled)"
+  DELTA_V rung 3: [XIC TIMER_OUT.DN OR (XIC DV_HB_LOW_OUT.DN AND XIC DV_HB_LOW_EN)]
+                  -> DELTA_V_READ[0].5
+  DELTA_V rung 4: [XIC LOSS_COM_DISPLAY.DN OR (XIC DV_HB_LOW_LOSS.DN AND XIC DV_HB_LOW_EN)]
+                  -> HEARTBEAT_AUX
+  Rung 26 (the low timers) and rung 29 (peak recorder) are NOT gated, so
+  DV_HB_LOW_PEAK keeps recording while DV_HB_LOW_EN = 0.
+  With DV_HB_LOW_EN = 0 the program behaves exactly as it does today.
   Not changed: MSS_CONTROL, OIT rungs 21 / 25 / 26, INPUT_MAP, DELTA_V rung 9.
   No DV_RUN_LOCKOUT tag is needed.
+  After the peak data is in (needs change control + operations sign-off):
+    [ ] Set DV_HB_LOW_OUT.PRE to at least 2x DV_HB_LOW_PEAK (normal peak,
+        not an outage value), and DV_HB_LOW_LOSS.PRE = OUT + 5000.
+    [ ] Set DV_HB_LOW_EN = 1.
+  The stuck-low trip can only be tested with DV_HB_LOW_EN = 1 - include it in
+  the OQ plan (tests T3-T7, T9 in upgrades.txt) and record the final state of
+  DV_HB_LOW_EN and the presets.
 
 **************************************************************************
 OTHER PROPOSED CHANGES - NOT IMPLEMENTED
