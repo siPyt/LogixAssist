@@ -109,9 +109,9 @@ Stage A - no effect on the plant (download first, then watch the timers)
     DV_HB_LOW_OUT   TIMER  PRE 6000   "DeltaV heartbeat stuck low - DeltaV indication"
     DV_HB_LOW_LOSS  TIMER  PRE 11000  "DeltaV heartbeat stuck low - comm loss"
     PLC_HB_TMR      TIMER  PRE 1000   "PLC heartbeat pulse timer"
-                      (PRE must match the step rate: 1000 = counter steps
-                       once per second. Confirm the value in the file -
-                       it was briefly 2000 while a bit version was tried.)
+                      (1000 = counter steps once per second. Confirmed by
+                       user 11/17/2026 - it was briefly 2000 while a bit
+                       version was tried.)
     DV_HB_LOW_PEAK  DINT   0          "Longest DeltaV heartbeat low seen (ms)"
   New rungs at the end of DELTA_V (after rung 25; existing rung numbers
   did not move):
@@ -133,7 +133,7 @@ Stage A - no effect on the plant (download first, then watch the timers)
   the contacts as text and add CMP / CPT from the toolbar. GEQ / GRT / MOV
   as neutral text are fine.
   TO DO for Stage A:
-    [ ] Confirm PLC_HB_TMR.PRE (1000 = one step per second).
+    [x] PLC_HB_TMR.PRE confirmed 1000 (one step per second).
     [ ] Accept edits, Verify Routine on DELTA_V, save (new revision name).
     [ ] Change control, then download.
     [ ] Online: DELTA_V_READ[1] should count 0..9999, one step per timer
