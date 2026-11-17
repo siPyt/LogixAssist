@@ -163,7 +163,10 @@ Stage B - changes comm-loss behavior
   download, so Stage B is built NOW, but gated by a commissioning enable bit
   so it does nothing until the Stage A data (DV_HB_LOW_PEAK) is in. Only the
   timer presets and the enable bit are adjusted afterwards.
-  STATUS: rung 3 BUILT offline by user 11/17/2026 12:47. Rung 4 still to do.
+  STATUS: rungs 3 and 4 BUILT offline by user 11/17/2026 (screenshot checked
+  12:50). Still to do: DV_HB_LOW_EN cross reference check (should be rungs 3
+  and 4 only), confirm the tag value is 0, Accept, Verify Routine on
+  DELTA_V, save, re-copy the ACD into the repo.
   Rung text as it appears in Logix (this is the correct ASCII; branches use
   BST / NXB / BND, NOT [ , ]):
     Rung 3: BST XIC TIMER_OUT.DN NXB XIC DV_HB_LOW_OUT.DN XIC DV_HB_LOW_EN BND OTE DELTA_V_READ[0].5
