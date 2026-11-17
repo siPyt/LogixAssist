@@ -108,22 +108,30 @@ Stage A - no effect on the plant (download first, then watch the timers)
   New tags (controller scope):
     DV_HB_LOW_OUT   TIMER  PRE 6000   "DeltaV heartbeat stuck low - DeltaV indication"
     DV_HB_LOW_LOSS  TIMER  PRE 11000  "DeltaV heartbeat stuck low - comm loss"
-    PLC_HB_TMR      TIMER  PRE 1000   "PLC heartbeat pulse timer"
-                      (1000 = counter steps once per second. Confirmed by
-                       user 11/17/2026 - it was briefly 2000 while a bit
-                       version was tried.)
+    PLC_HB_TMR      TIMER  PRE 5000   "PLC heartbeat pulse timer"
+                      (Set to 5000 by user 11/17/2026. DELTA_V_READ[1] steps
+                       about every 5 s, so DELTA_V_READ[1].0 is 0 for ~5 s
+                       then 1 for ~5 s: a 0->1 change every ~10 s. It was
+                       1000 earlier, and briefly 2000 while a bit version
+                       was tried. DeltaV's update rate is unknown; 5000
+                       covers a refresh as slow as about 1.5-2 s. Each
+                       state should last >= 3x DeltaV's slowest update.)
     DV_HB_LOW_PEAK  DINT   0          "Longest DeltaV heartbeat low seen (ms)"
   New rungs at the end of DELTA_V (after rung 25; existing rung numbers
   did not move):
     26  XIO HEARTBEAT -> [TON DV_HB_LOW_OUT 6000, TON DV_HB_LOW_LOSS 11000]
-    27  XIO PLC_HB_TMR.DN -> TON PLC_HB_TMR 1000
+    27  XIO PLC_HB_TMR.DN -> TON PLC_HB_TMR 5000
     28  XIC PLC_HB_TMR.DN -> CPT DELTA_V_READ[1] = (DELTA_V_READ[1]+1) MOD 10000
           (27 must stay before 28: the counter steps once per timer cycle,
            0..9999, then wraps.)
         11/17/2026: a bit version (OTE DELTA_V_READ[1].0) was tried because
         the DeltaV engineers are used to bits, then dropped in favor of the
-        counter. A counter cannot be missed by slow polling; a bit that
-        flips every second can. DeltaV must map the WORD DELTA_V_READ[1].
+        counter. DeltaV will use bit 0 of the word, DELTA_V_READ[1].0, as
+        the PLC heartbeat: the counter goes up by 1 each step, so bit 0 flips
+        0,1,0,1 at every step (also across the 9999 -> 0 wrap).
+        DeltaV side: alarm "PLC comm lost" if DELTA_V_READ[1].0 does not
+        change for about 3x the step time (about 15 s at PRE 5000), and
+        sample faster than the step time.
     29  GRT DV_HB_LOW_OUT.ACC > DV_HB_LOW_PEAK -> MOV DV_HB_LOW_OUT.ACC to
           DV_HB_LOW_PEAK  (peak recorder; write 0 to DV_HB_LOW_PEAK to restart)
   Nothing here drives an output except DELTA_V_READ[1] (was unused).
@@ -133,16 +141,18 @@ Stage A - no effect on the plant (download first, then watch the timers)
   the contacts as text and add CMP / CPT from the toolbar. GEQ / GRT / MOV
   as neutral text are fine.
   TO DO for Stage A:
-    [x] PLC_HB_TMR.PRE confirmed 1000 (one step per second).
+    [x] PLC_HB_TMR.PRE set to 5000 (counter step about every 5 s).
     [ ] Accept edits, Verify Routine on DELTA_V, save (new revision name).
     [ ] Change control, then download.
-    [ ] Online: DELTA_V_READ[1] should count 0..9999, one step per timer
-        cycle.
+    [ ] Online: DELTA_V_READ[1] should count 0..9999, one step about every
+        5 s, and DELTA_V_READ[1].0 should flip 0,1,0,1 at each step.
     [ ] Online: DV_HB_LOW_OUT.ACC should stay near 0 while the heartbeat
         toggles; DV_HB_LOW_PEAK is the longest 0 period seen. Leave it
         running for a few days, including a DeltaV restart if possible.
-    [ ] DeltaV engineer: confirm DELTA_V_READ[1] is mapped and alarm if it
-        stops changing for 5-10 s.
+    [ ] DeltaV engineer: map DELTA_V_READ[1].0 as the PLC heartbeat, alarm if
+        it does not change for about 15 s, sample faster than 5 s. Ask them
+        for their slowest refresh of this value (PRE should give each state
+        >= 3x that).
 
 Stage B - changes comm-loss behavior (only after Stage A data + sign-off)
   DELTA_V rung 3: [XIC TIMER_OUT.DN OR XIC DV_HB_LOW_OUT.DN] -> DELTA_V_READ[0].5
