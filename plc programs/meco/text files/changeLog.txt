@@ -104,12 +104,34 @@ Open facts: DeltaV heartbeat period unknown; DeltaV engineer must confirm it
 reads DELTA_V_READ[1] (U2).
 
 Stage A - no effect on the plant (download first, then watch the timers)
-  New tags: DV_HB_LOW_OUT (TIMER, PRE 6000), DV_HB_LOW_LOSS (TIMER, PRE 11000),
-            PLC_HB_TMR (TIMER, PRE 1000)
-  New rungs at the end of DELTA_V (26-28) - heartbeat low timers and the
-  PLC -> DeltaV counter in DELTA_V_READ[1].
-  Watch DV_HB_LOW_OUT.ACC online: its peak is the longest time DeltaV holds
-  the heartbeat at 0. It must stay well under 6000.
+  STATUS: edited offline 11/17/2026 in MECO11NOV2026.ACD. Not downloaded.
+  New tags (controller scope):
+    DV_HB_LOW_OUT   TIMER  PRE 6000   "DeltaV heartbeat stuck low - DeltaV indication"
+    DV_HB_LOW_LOSS  TIMER  PRE 11000  "DeltaV heartbeat stuck low - comm loss"
+    PLC_HB_TMR      TIMER  PRE 1000   "PLC heartbeat pulse timer"
+    DV_HB_LOW_PEAK  DINT   0          "Longest DeltaV heartbeat low seen (ms)"
+  New rungs at the end of DELTA_V (after rung 25; existing rung numbers
+  did not move):
+    26  XIO HEARTBEAT -> [TON DV_HB_LOW_OUT 6000, TON DV_HB_LOW_LOSS 11000]
+    27  XIO PLC_HB_TMR.DN -> TON PLC_HB_TMR 1000
+    28  XIC PLC_HB_TMR.DN -> CPT DELTA_V_READ[1] = (DELTA_V_READ[1]+1) MOD 10000
+          (27 must stay before 28: the counter steps once per second, 0..9999)
+    29  GRT DV_HB_LOW_OUT.ACC > DV_HB_LOW_PEAK -> MOV DV_HB_LOW_OUT.ACC to
+          DV_HB_LOW_PEAK  (peak recorder; write 0 to DV_HB_LOW_PEAK to restart)
+  Nothing here drives an output except DELTA_V_READ[1], which was unused.
+  The new timers are not used by any other rung yet.
+  Rung text note: in this Logix version a CMP / CPT typed as neutral text
+  swallows everything after the instruction name as its expression. Enter
+  the contacts as text and add CMP / CPT from the toolbar.
+  TO DO for Stage A:
+    [ ] Accept edits, Verify Routine on DELTA_V, save (new revision name).
+    [ ] Change control, then download.
+    [ ] Online: DELTA_V_READ[1] should count 0..9999, one step per second.
+    [ ] Online: DV_HB_LOW_OUT.ACC should stay near 0 while the heartbeat
+        toggles; DV_HB_LOW_PEAK is the longest 0 period seen. Leave it
+        running for a few days, including a DeltaV restart if possible.
+    [ ] DeltaV engineer: confirm DELTA_V_READ[1] is mapped and alarm if it
+        stops changing for 5-10 s.
 
 Stage B - changes comm-loss behavior (only after Stage A data + sign-off)
   DELTA_V rung 3: [XIC TIMER_OUT.DN OR XIC DV_HB_LOW_OUT.DN] -> DELTA_V_READ[0].5
