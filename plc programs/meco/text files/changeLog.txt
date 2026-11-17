@@ -83,7 +83,41 @@ STILL TO DO
 
 
 **************************************************************************
+DELTAV COMMUNICATION MONITORING (upgrades.txt U1 + U2) - IN PROGRESS
+**************************************************************************
+Decisions made 11/17/2026 (user, on recommendation) - still need operations /
+process owner sign-off before anything is downloaded:
+  D1 = (b)  DeltaV comm loss only removes the DeltaV run request. Manual and
+            hardwired remote start keep working with DeltaV down. XIO
+            HEARTBEAT_AUX comes OUT of MSS_CONTROL rung 0.
+  D2 = require a NEW run command after comm returns (no automatic restart).
+  D3 = open: nothing in the PLC writes D_V_REMOTE_START. If DeltaV writes it
+       directly it must be gated too (it is - see INPUT_MAP rung 35 below).
+Open facts: DeltaV heartbeat period unknown; DeltaV engineer must confirm it
+reads DELTA_V_READ[1] (U2).
+
+Stage A - no effect on the plant (download first, then watch the timers)
+  New tags: DV_HB_LOW_OUT (TIMER, PRE 6000), DV_HB_LOW_LOSS (TIMER, PRE 11000),
+            PLC_HB_TMR (TIMER, PRE 1000)
+  New rungs at the end of DELTA_V (26-28) - heartbeat low timers and the
+  PLC -> DeltaV counter in DELTA_V_READ[1].
+  Watch DV_HB_LOW_OUT.ACC online: its peak is the longest time DeltaV holds
+  the heartbeat at 0. It must stay well under 6000.
+
+Stage B - changes comm-loss behavior (only after Stage A data + sign-off)
+  New tag: DV_RUN_LOCKOUT (BOOL).
+  DELTA_V rung 3: [XIC TIMER_OUT.DN OR XIC DV_HB_LOW_OUT.DN] -> DELTA_V_READ[0].5
+  DELTA_V rung 4: [XIC LOSS_COM_DISPLAY.DN OR XIC DV_HB_LOW_LOSS.DN] -> HEARTBEAT_AUX
+  New lockout rung (DELTA_V): [XIC HEARTBEAT_AUX OR (XIC DV_RUN_LOCKOUT AND
+    [XIC D_V_REMOTE_START OR XIC DELTA_V_WRITE[0].1])] -> OTE DV_RUN_LOCKOUT
+  DELTA_V rung 9: add XIO DV_RUN_LOCKOUT in series before D_V_REMOTE_START_MAP.
+  INPUT_MAP rung 35: add XIO DV_RUN_LOCKOUT in series with the D_V_REMOTE_START
+    branch only (the hardwired UNIT_REMOTE_START_DI branch is NOT gated).
+  MSS_CONTROL rung 0: delete the XIO HEARTBEAT_AUX contact.
+  Not changed: OIT rungs 21 / 25 / 26 (screen 99 behavior stays).
+
+**************************************************************************
 OTHER PROPOSED CHANGES - NOT IMPLEMENTED
 **************************************************************************
-  DeltaV communication monitoring upgrades U1-U5: see upgrades.txt.
-  Decisions D1-D3 in upgrades.txt are still open.
+  upgrades.txt U3 (PLC comm-loss alarm), U4 (round-trip echo), U5 (tag
+  descriptions).
