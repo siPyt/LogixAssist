@@ -1,0 +1,212 @@
+MECO9497 - HMI HANDOFF CHECKLIST
+Prepared: 2026-11-18
+Purpose: Continue the MECO HMI work from another laptop.
+
+
+**************************************************************************
+1. CURRENT STATUS
+**************************************************************************
+
+Conductivity setpoint reminder
+- PLC logic is complete offline in MECO11NOV2026.ACD.
+- The PLC file has not been downloaded to the controller.
+- The HMI change is still open.
+- Nothing in this handoff has been tested on the live unit.
+
+Required new controller tags
+  COND_SP_NOMINAL      REAL   1.0    Read Only
+  COND_SP_TOL          REAL   0.005  Read Only
+  COND_SP_OK           BOOL   0      Read/Write
+  MSG_COND_SP_CHANGED  BOOL   0      Read/Write
+
+PLC logic already added to MainProgram > OIT
+  Rung 47:
+    CMP ABS(AAH_200_SP-COND_SP_NOMINAL)<=COND_SP_TOL -> OTE COND_SP_OK
+
+  Rung 48:
+    XIO COND_SP_OK -> OTE MSG_COND_SP_CHANGED
+
+Behavior
+- AAH_200_SP within 0.005 of 1.00: MSG_COND_SP_CHANGED = 0.
+- AAH_200_SP outside that tolerance, or an invalid REAL: the bit is 1.
+- The reminder is not latched.
+- Returning AAH_200_SP to 1.00 clears it automatically.
+- It does not stop the still or change MCB.
+- It does not affect MSS_SHUTDOWN, MSS_ALERT, DSTLT_STORAGE, the horn,
+  AUDIBLE_SUMMARY, ACKNOWLEDGE, RESET, or DeltaV.
+
+DeltaV communication work
+- DeltaV U1/U2 logic is edited offline in MECO11NOV2026.ACD.
+- DV_HB_LOW_EN is intentionally 0.
+- Existing HMI screen 99 already handles DeltaV communication loss.
+- Do not create the proposed MSG_DV_COMM alarm or a new DeltaV comm-loss
+  screen during this HMI task. That proposal was not implemented.
+
+Primary references
+- text files\changeLog.txt
+- proposals\conductivitySetpointReminder.txt
+- text files\logixRungTextNotes.txt
+
+
+**************************************************************************
+2. GET THE FILES AND BACKUPS READY
+**************************************************************************
+
+[ ] Pull or clone the latest LogixAssist repository.
+[ ] Confirm this handoff file and the latest MECO11NOV2026.ACD are present.
+[ ] Keep the existing MECO9497.mer as a backup.
+[ ] Use the editable FactoryTalk View ME application if available.
+[ ] If only an MER is available, verify in Application Manager that it can
+    be restored to an editable application before making changes.
+[ ] Save a new HMI revision name. Do not overwrite the only working copy.
+
+
+**************************************************************************
+3. OPEN AND VERIFY THE HMI APPLICATION
+**************************************************************************
+
+[ ] Open the MECO application in the correct FactoryTalk View Studio ME
+    version.
+[ ] Confirm the application's PLC communication shortcut points to the
+    intended MECO controller.
+[ ] Use Tag Browser to confirm these controller tags are visible:
+      MSG_COND_SP_CHANGED
+      AAH_200_SP
+[ ] Confirm MSG_COND_SP_CHANGED is read as a BOOL.
+[ ] Confirm AAH_200_SP is read as a REAL.
+[ ] Confirm AAH_200_SP is the value used by the conductivity alarm.
+
+
+**************************************************************************
+4. CHOOSE WHERE TO DISPLAY THE REMINDER
+**************************************************************************
+
+[ ] Use the main operator overview or the normal conductivity screen.
+[ ] If the application has a common header or navigation display, place the
+    reminder there so operators can see it across screens.
+[ ] Do not use screen 99. Screen 99 is reserved for DeltaV communication
+    loss.
+[ ] Do not add a forced screen change.
+
+
+**************************************************************************
+5. BUILD THE PERSISTENT REMINDER BANNER
+**************************************************************************
+
+[ ] Add a prominent banner/group to the selected display.
+[ ] Use this exact message:
+
+    Conductivity setpoint is not 1.00 - set it back to 1.00
+
+[ ] Add a numeric display beside the message.
+[ ] Connect the numeric display to AAH_200_SP.
+[ ] Use a format such as 0.000.
+[ ] Add the label "Current setpoint".
+[ ] Apply Visibility animation to the banner and numeric value as one group.
+[ ] Visibility tag/expression: MSG_COND_SP_CHANGED
+[ ] Visible when MSG_COND_SP_CHANGED = 1.
+[ ] Hidden when MSG_COND_SP_CHANGED = 0.
+[ ] Verify visibility does not depend on ACKNOWLEDGE or RESET.
+
+
+**************************************************************************
+6. OPTIONAL ALARM-LIST ENTRY
+**************************************************************************
+
+The persistent banner is the required indication. Add an alarm-list entry
+only if that matches the application's existing alarm convention.
+
+[ ] Trigger the alarm/message entry from MSG_COND_SP_CHANGED = 1.
+[ ] Verify acknowledging it does not hide the persistent banner.
+[ ] Never rely on the alarm list alone, because acknowledged alarms may move
+    out of the active view.
+
+
+**************************************************************************
+7. CONNECTIONS THAT MUST NOT BE ADDED
+**************************************************************************
+
+Do not connect the reminder to:
+
+[ ] AUDIBLE_SUMMARY
+[ ] Horn logic
+[ ] ACKNOWLEDGE
+[ ] RESET
+[ ] MCB
+[ ] MSS_SHUTDOWN
+[ ] MSS_ALERT
+[ ] DSTLT_STORAGE
+[ ] Any DELTA_V_READ or DELTA_V_WRITE bit
+[ ] OIT_SCREEN_CONTROL
+[ ] A forced display change
+
+
+**************************************************************************
+8. BUILD, SAVE, AND PREPARE THE RELEASE
+**************************************************************************
+
+[ ] Save the editable HMI application with a new revision name.
+[ ] Validate/build the application without errors.
+[ ] Create a new runtime MER.
+[ ] Record both the PLC and HMI revision names.
+[ ] Complete change control before downloading anything.
+[ ] Keep the previous runtime MER available for rollback.
+[ ] Do not expect MSG_COND_SP_CHANGED to work in the HMI until the matching
+    PLC revision containing the new tags and rungs is downloaded.
+
+Important
+- The 2026-10-15 PLC report showed AAH_200_SP at 0.6.
+- Check AAH_200_SP before download.
+- If it is not 1.00, the HMI reminder correctly turns on immediately after
+  the new PLC revision starts.
+
+
+**************************************************************************
+9. ACCEPTANCE TEST AFTER APPROVED DOWNLOAD
+**************************************************************************
+
+[ ] AAH_200_SP = 1.000: reminder hidden.
+[ ] AAH_200_SP = 1.004: reminder hidden.
+[ ] AAH_200_SP = 1.010: reminder visible.
+[ ] AAH_200_SP = 0.800: reminder visible.
+[ ] AAH_200_SP = 1.200: reminder visible.
+[ ] Press Alarm Acknowledge: reminder remains visible.
+[ ] Press Reset: reminder remains visible while the setpoint is wrong.
+[ ] Return AAH_200_SP to 1.000: reminder clears automatically.
+[ ] Setpoint wrong during PLC power cycle/startup: reminder returns.
+[ ] Unit continues to run normally while only the reminder is active.
+[ ] No change to MCB.
+[ ] DELTA_V_READ[0].0 and DELTA_V_READ[0].7 do not change because of the
+    reminder.
+[ ] No horn sounds.
+[ ] No change to AUDIBLE_SUMMARY.
+[ ] No screen change to screen 99.
+
+
+**************************************************************************
+10. FINISH THE HANDOFF
+**************************************************************************
+
+[ ] Record the installed PLC revision.
+[ ] Record the installed HMI/MER revision.
+[ ] Record the test date and tester.
+[ ] Update changeLog.txt with actual results.
+[ ] Commit the final HMI source/runtime artifacts if they belong in the
+    repository under the project's normal revision-control practice.
+[ ] Retain the pre-change files for rollback.
+
+
+**************************************************************************
+11. SEPARATE DELTAV COMMISSIONING ITEMS
+**************************************************************************
+
+These are not HMI banner work and remain gated by the PLC plan in changeLog:
+
+[ ] Stage A PLC changes are downloaded and verified.
+[ ] DV_HB_LOW_PEAK is collected over several days, including a DeltaV restart
+    if possible.
+[ ] DeltaV engineers confirm the slowest DELTA_V_READ[1].0 update interval.
+[ ] Final DV_HB_LOW_OUT.PRE and DV_HB_LOW_LOSS.PRE are approved.
+[ ] DV_HB_LOW_EN remains 0 until the approved commissioning point.
+[ ] Enabling stuck-low behavior and performing OQ tests is completed only
+    with operations/process-owner sign-off.
